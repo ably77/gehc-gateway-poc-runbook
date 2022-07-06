@@ -504,6 +504,7 @@ glooMeshMgmtServer:
     disableCA: false
     disableCACertGeneration: false
 glooMeshUi:
+  serviceType: ClusterIP
   resources:
     requests:
       cpu: 125m
