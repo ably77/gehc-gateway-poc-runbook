@@ -1795,7 +1795,7 @@ EOF
 ```
 
 Then we can also delete the various policies we've created:
-```bash
+```
 # rate limiting
 kubectl --context ${MGMT} -n httpbin delete ratelimitpolicy httpbin
 kubectl --context ${MGMT} -n httpbin delete ratelimitclientconfig httpbin
@@ -1804,6 +1804,10 @@ kubectl --context ${MGMT} -n httpbin delete ratelimitserversettings rate-limit-s
 
 # transformation
 kubectl --context ${MGMT} -n httpbin delete transformationpolicy ratelimit-transformation
+
+# WAF
+kubectl --context ${MGMT} -n httpbin delete wafpolicies.security.policy.gloo.solo.io log4shell
+```
 
 ## Lab 15 - Exploring the Gloo Mesh Enterprise UI <a name="Lab-15"></a>
 
