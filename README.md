@@ -23,10 +23,14 @@ source ./scripts/assert.sh
 * [Lab 8a - Expose the productpage through a gateway](#Lab-8a)
 * [Lab 8b - Canary deployment with traffic shifting](#Lab-8b)
 * [Lab 9 - Traffic policies](#Lab-9)
-* [Lab 10 - Expose an external service](#Lab-10)
-* [Lab 11 - Exploring the Gloo Mesh Enterprise UI](#Lab-11)
-* [Lab 12 - Exposing the Gloo Mesh UI](#Lab-12)
-* [Lab 13 - Integrate Gloo Mesh UI with OIDC](#Lab-13)
+* [Lab 10 - Create the httpbin workspace](#Lab-10)
+* [Lab 11 - Expose an external service](#Lab-11)
+* [Lab 12 - Implement Rate Limiting policy on httpbin](#Lab-12)
+* [Lab 13 - Use the Web Application Firewall filter](#Lab-13)
+* [Lab 14 - Exploring the Gloo Mesh Enterprise UI](#Lab-14)
+* [Lab 15 - Exposing the Gloo Mesh UI](#Lab-15)
+* [Lab 16 - Integrate Gloo Mesh UI with OIDC](#Lab-16)
+
 
 ## Introduction to Gloo Mesh <a name="introduction"></a>
 
@@ -325,64 +329,7 @@ Note that we deployed the `productpage` service in the `bookinfo-frontends` name
 
 And we deployed the `v1` and `v2` versions of the `reviews` microservice, not the `v3` version.
 
-## Lab 4 - Deploy the httpbin workspace and demo app <a name="Lab-4"></a>
-
-We're going to create a workspace for the team in charge of the httpbin application.
-
-The platform team needs to create the corresponding `Workspace` Kubernetes objects in the Gloo Mesh management cluster.
-
-Let's create the `httpbin` workspace which corresponds to the `httpbin` namespace on `mgmt`:
-
-```bash
-kubectl apply --context ${MGMT} -f- <<EOF
-apiVersion: admin.gloo.solo.io/v2
-kind: Workspace
-metadata:
-  name: httpbin
-  namespace: gloo-mesh
-  labels:
-    allow_ingress: "true"
-spec:
-  workloadClusters:
-  - name: mgmt
-    namespaces:
-    - name: httpbin
-EOF
-```
-
-Then, the Httpbin team creates a `WorkspaceSettings` Kubernetes object in one of the namespaces of the `httpbin` workspace:
-
-```bash
-kubectl apply --context ${MGMT} -f- <<EOF
-apiVersion: admin.gloo.solo.io/v2
-kind: WorkspaceSettings
-metadata:
-  name: httpbin
-  namespace: httpbin
-spec:
-  importFrom:
-  - workspaces:
-    - name: gateways
-    resources:
-    - kind: SERVICE
-  exportTo:
-  - workspaces:
-    - name: gateways
-    resources:
-    - kind: SERVICE
-      labels:
-        app: in-mesh
-    - kind: ALL
-      labels:
-        expose: "true"
-EOF
-```
-
-The Httpbin team has decided to export the following to the `gateway` workspace (using a reference):
-- the `in-mesh` Kubernetes service
-- all the resources (RouteTables, VirtualDestination, ...) that have the label `expose` set to `true`
-
-
+## Lab 4 - Deploy the httpbin demo app <a name="Lab-4"></a>
 Now we're going to deploy the httpbin application to demonstrate several features of Istio and Gloo Mesh.
 
 You can find more information about this application [here](http://httpbin.org/).
@@ -816,7 +763,6 @@ The Bookinfo team has decided to export the following to the `gateway` workspace
 This is how to environment looks like with the workspaces:
 
 ![Gloo Mesh Workspaces](images/steps/create-bookinfo-workspace/gloo-mesh-workspaces.svg)
-
 
 
 ## Lab 8a - Expose the productpage through a gateway <a name="Lab-8a"></a>
@@ -1287,7 +1233,64 @@ kubectl --context ${MGMT} -n bookinfo-backends delete routetable reviews
 kubectl --context ${MGMT} -n bookinfo-frontends delete routetable productpage
 ```
 
-## Lab 10 - Expose an external service <a name="Lab-10"></a>
+## Lab 10 - Create the httpbin workspace <a name="Lab-10"></a>
+
+The next couple of labs will use the `httpbin` application to demonstrate some more gateway features. To start, we're going to create a workspace for the team in charge of the httpbin application.
+
+The platform team needs to create the corresponding `Workspace` Kubernetes objects in the Gloo Mesh management cluster.
+
+Let's create the `httpbin` workspace which corresponds to the `httpbin` namespace on the `mgmt` cluster:
+
+```bash
+kubectl apply --context ${MGMT} -f- <<EOF
+apiVersion: admin.gloo.solo.io/v2
+kind: Workspace
+metadata:
+  name: httpbin
+  namespace: gloo-mesh
+  labels:
+    allow_ingress: "true"
+spec:
+  workloadClusters:
+  - name: mgmt
+    namespaces:
+    - name: httpbin
+EOF
+```
+
+Then, the httpbin team creates a `WorkspaceSettings` Kubernetes object in one of the namespaces of the `httpbin` workspace:
+
+```bash
+kubectl apply --context ${MGMT} -f- <<EOF
+apiVersion: admin.gloo.solo.io/v2
+kind: WorkspaceSettings
+metadata:
+  name: httpbin
+  namespace: httpbin
+spec:
+  importFrom:
+  - workspaces:
+    - name: gateways
+    resources:
+    - kind: SERVICE
+  exportTo:
+  - workspaces:
+    - name: gateways
+    resources:
+    - kind: SERVICE
+      labels:
+        app: in-mesh
+    - kind: ALL
+      labels:
+        expose: "true"
+EOF
+```
+
+The Httpbin team has decided to export the following to the `gateway` workspace (using a reference):
+- the `in-mesh` Kubernetes service
+- all the resources (RouteTables, VirtualDestination, ...) that have the label `expose` set to `true`
+
+## Lab 11 - Expose an external service <a name="Lab-11"></a>
 
 In this step, we're going to expose an external service through a Gateway using Gloo Mesh and show how we can then migrate this service to the Mesh.
 
@@ -1446,10 +1449,10 @@ This diagram shows the flow of the requests :
 
 ![Gloo Mesh Gateway EXternal Service](images/steps/gateway-external-service/gloo-mesh-gateway-external-service.svg)
 
-## Lab 11 - Implement Rate Limiting policy on httpbin <a name="Lab-11"></a>
+## Lab 12 - Implement Rate Limiting policy on httpbin <a name="Lab-12"></a>
 In this lab, lets explore adding rate limiting to our httpbin route
 
-## Lab 12 - Use the Web Application Firewall filter <a name="Lab-12"></a>
+## Lab 13 - Use the Web Application Firewall filter <a name="Lab-13"></a>
 A web application firewall (WAF) protects web applications by monitoring, filtering, and blocking potentially harmful traffic and attacks that can overtake or exploit them.
 
 Gloo Mesh includes the ability to enable the ModSecurity Web Application Firewall for any incoming and outgoing HTTP connections. 
@@ -1581,7 +1584,7 @@ And also delete the waf policy we've created:
 kubectl --context ${MGMT} -n httpbin delete wafpolicies.security.policy.gloo.solo.io log4shell
 ```
 
-## Lab 11 - Exploring the Gloo Mesh Enterprise UI <a name="Lab-11"></a>
+## Lab 14 - Exploring the Gloo Mesh Enterprise UI <a name="Lab-14"></a>
 
 Gloo Mesh provides a powerful dashboard to view your multi-cluster Istio environment.
 
@@ -1596,7 +1599,7 @@ The UI is available at http://localhost:8090
 
 ![Gloo Mesh Dashboard](images/gm-dashboard.png)
 
-## Lab 12 - Exposing the Gloo Mesh UI <a name="Lab-12"></a>
+## Lab 15 - Exposing the Gloo Mesh UI <a name="Lab-15"></a>
 First we are going to create a new workspace that we will name the Admin Workspace. In this workspace we will put management tools such as the gloo-mesh namespace (or in future tools like argocd, for example)
 ```
 kubectl apply --context ${MGMT} -f- <<EOF
@@ -1811,7 +1814,7 @@ Now you should be able to access the Gloo Mesh UI on port 443
 echo "https://${ENDPOINT_HTTPS_GW_MGMT}"
 ```
 
-## Lab 13 - Integrate Gloo Mesh UI with OIDC <a name="Lab-13"></a>
+## Lab 16 - Integrate Gloo Mesh UI with OIDC <a name="Lab-16"></a>
 Now that we have our Gloo Mesh UI exposed, we can integrate it with our OIDC. The Gloo Mesh API server has its own external auth service built in. This way, you can manage external auth for the Gloo Mesh UI separately from the external auth that you set up for your application networking policies.
 
 The `gloo-mesh-enterprise` helm chart lets us define the OIDC values inline. The values OIDC values are described below:
