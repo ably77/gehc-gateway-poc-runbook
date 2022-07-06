@@ -1664,6 +1664,15 @@ Too many Requests!
 Try again after a minute
 ```
 
+### cleanup
+Not necessary for the workshop, but if you want to clean up the rate limit objects you can use the commands below
+```
+kubectl --context ${MGMT} -n httpbin delete ratelimitpolicy httpbin
+kubectl --context ${MGMT} -n httpbin delete ratelimitclientconfig httpbin
+kubectl --context ${MGMT} -n httpbin delete ratelimitserverconfig httpbin
+kubectl --context ${MGMT} -n httpbin delete ratelimitserversettings rate-limit-server
+```
+
 ## Lab 14 - Use the Web Application Firewall filter <a name="Lab-14"></a>
 A web application firewall (WAF) protects web applications by monitoring, filtering, and blocking potentially harmful traffic and attacks that can overtake or exploit them.
 
@@ -1704,7 +1713,7 @@ spec:
 EOF
 ```
 
-Finally, you need to update the httpbin `RouteTable` to use this `AuthConfig`:
+Finally, you need to update the httpbin `RouteTable` to use this `WAFPolicy`:
 
 ```bash
 kubectl --context ${MGMT} apply -f - <<EOF
@@ -1775,7 +1784,7 @@ spec:
   virtualGateways:
     - name: north-south-gw-443
       namespace: istio-gateways
-      cluster: cluster1
+      cluster: mgmt
   workloadSelectors: []
   http:
     - name: httpbin
@@ -1975,6 +1984,11 @@ spec:
       app: gloo-mesh-ui
     namespace: gloo-mesh
 EOF
+```
+
+Now you should be able to access the Gloo Mesh UI on port 80
+```
+echo "http://${ENDPOINT_HTTP_GW_MGMT}"
 ```
 
 Alternatively you can also apply the `RouteTable` to the gateway on 443 instead
