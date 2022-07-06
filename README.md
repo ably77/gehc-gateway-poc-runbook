@@ -1597,9 +1597,73 @@ spec:
 EOF
 ```
 
-Refresh the web page multiple times.
+Refresh the web page multiple times. You should see a 429 error after 5 refreshes
 
-## Lab 13 - Use the Web Application Firewall filter <a name="Lab-13"></a>
+## Lab 13 - Use the Transformation filter <a name="Lab-13"></a>
+
+### manipulate :status pseudo-header when rate limited
+Lets try a simple use case leveraging the transformation filter output when rate limited. For our first case, lets say our application expects a `529` header instead of the default `429` header returned when rate limited by Envoy. We can let the transformation filter handle that!
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: trafficcontrol.policy.gloo.solo.io/v2
+kind: TransformationPolicy
+metadata:
+  name: ratelimit-transformation
+  namespace: httpbin
+spec:
+  applyToRoutes:
+  - route:
+      labels:
+        ratelimited: "true"
+  config:
+    phase:
+      preAuthz:
+        priority: 0
+    response:
+      injaTemplate:
+        headers:
+          ":status":
+            text: '{% if header(":status") == "429" %}529{% else %}{{ header(":status") }}{% endif %}'  
+EOF
+```
+
+Refresh the web browser and we will see that the HTTP ERROR has changed from 429 to 529. Now my application will be happy with the correct error output when rate limited
+
+### manipulate the response body when rate limited
+Let's use the transformation filter to manipulate the response body when rate limited. For our first example we will just output a styled html page in the browser with an error message
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: trafficcontrol.policy.gloo.solo.io/v2
+kind: TransformationPolicy
+metadata:
+  name: ratelimit-transformation
+  namespace: httpbin
+spec:
+  applyToRoutes:
+  - route:
+      labels:
+        ratelimited: "true"
+  config:
+    phase:
+      preAuthz:
+        priority: 0
+    response:
+      injaTemplate:
+        body:
+          text: '{% if header(":status") == "429" %}<html><body style="background-color:powderblue;"><h1>Too
+            many Requests!</h1><p>Try again after a minute</p></body></html>{%
+            else %}{{ body() }}{% endif %}'
+        parseBodyBehavior: DontParse
+EOF
+```
+
+Now if we refresh the page in the browser we should see a blue error page that says
+```
+Too many Requests!
+Try again after a minute
+```
+
+## Lab 14 - Use the Web Application Firewall filter <a name="Lab-14"></a>
 A web application firewall (WAF) protects web applications by monitoring, filtering, and blocking potentially harmful traffic and attacks that can overtake or exploit them.
 
 Gloo Mesh includes the ability to enable the ModSecurity Web Application Firewall for any incoming and outgoing HTTP connections. 
@@ -1731,7 +1795,7 @@ And also delete the waf policy we've created:
 kubectl --context ${MGMT} -n httpbin delete wafpolicies.security.policy.gloo.solo.io log4shell
 ```
 
-## Lab 14 - Exploring the Gloo Mesh Enterprise UI <a name="Lab-14"></a>
+## Lab 15 - Exploring the Gloo Mesh Enterprise UI <a name="Lab-15"></a>
 
 Gloo Mesh provides a powerful dashboard to view your multi-cluster Istio environment.
 
@@ -1746,7 +1810,7 @@ The UI is available at http://localhost:8090
 
 ![Gloo Mesh Dashboard](images/gm-dashboard.png)
 
-## Lab 15 - Exposing the Gloo Mesh UI <a name="Lab-15"></a>
+## Lab 16 - Exposing the Gloo Mesh UI <a name="Lab-16"></a>
 First we are going to create a new workspace that we will name the Admin Workspace. In this workspace we will put management tools such as the gloo-mesh namespace (or in future tools like argocd, for example)
 ```
 kubectl apply --context ${MGMT} -f- <<EOF
@@ -1961,7 +2025,7 @@ Now you should be able to access the Gloo Mesh UI on port 443
 echo "https://${ENDPOINT_HTTPS_GW_MGMT}"
 ```
 
-## Lab 16 - Integrate Gloo Mesh UI with OIDC <a name="Lab-16"></a>
+## Lab 17 - Integrate Gloo Mesh UI with OIDC <a name="Lab-17"></a>
 Now that we have our Gloo Mesh UI exposed, we can integrate it with our OIDC. The Gloo Mesh API server has its own external auth service built in. This way, you can manage external auth for the Gloo Mesh UI separately from the external auth that you set up for your application networking policies.
 
 The `gloo-mesh-enterprise` helm chart lets us define the OIDC values inline. The values OIDC values are described below:
