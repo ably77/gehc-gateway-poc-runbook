@@ -1453,6 +1453,151 @@ This diagram shows the flow of the requests :
 ## Lab 12 - Implement Rate Limiting policy on httpbin <a name="Lab-12"></a>
 In this lab, lets explore adding rate limiting to our httpbin route
 
+In this step, we're going to apply rate limiting to the Gateway to only allow 5 requests per minute
+
+First, we need to create a `RateLimitClientConfig` object to define the descriptors:
+
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: trafficcontrol.policy.gloo.solo.io/v2
+kind: RateLimitClientConfig
+metadata:
+  labels:
+    workspace.solo.io/exported: "true"
+  name: httpbin
+  namespace: httpbin
+spec:
+  raw:
+    rateLimits:
+    - actions:
+      - genericKey:
+          descriptorValue: "per-minute"
+      - remoteAddress: {}
+EOF
+```
+
+Then, we need to create a `RateLimitServerConfig` object to define the limits based on the descriptors:
+
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: admin.gloo.solo.io/v2
+kind: RateLimitServerConfig
+metadata:
+  labels:
+    workspace.solo.io/exported: "true"
+  name: httpbin
+  namespace: httpbin
+spec:
+  destinationServers:
+  - port:
+      name: grpc
+    ref:
+      cluster: mgmt
+      name: rate-limiter
+      namespace: gloo-mesh-addons
+  raw:
+    descriptors:
+      - key: generic_key
+        value: "per-minute"
+        descriptors:
+          - key: remote_address
+            rateLimit:
+              requestsPerUnit: 5
+              unit: MINUTEEOF
+```
+
+After that, we need to create a `RateLimitPolicy` object to define the descriptors:
+
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: trafficcontrol.policy.gloo.solo.io/v2
+kind: RateLimitPolicy
+metadata:
+  labels:
+    workspace.solo.io/exported: "true"
+  name: httpbin
+  namespace: httpbin
+spec:
+  applyToRoutes:
+  - route:
+      labels:
+        ratelimited: "true"
+  config:
+    ratelimitClientConfig:
+      cluster: mgmt
+      name: httpbin
+      namespace: httpbin
+    ratelimitServerConfig:
+      cluster: mgmt
+      name: httpbin
+      namespace: httpbin
+    serverSettings:
+      cluster: mgmt
+      name: rate-limit-server
+      namespace: httpbin
+EOF
+```
+
+We also need to create a `RateLimitServerSettings`, which is a CRD that define which extauth server to use: 
+
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: admin.gloo.solo.io/v2
+kind: RateLimitServerSettings
+metadata:
+  labels:
+    workspace.solo.io/exported: "true"
+  name: rate-limit-server
+  namespace: httpbin
+spec:
+  destinationServer:
+    port:
+      name: grpc
+    ref:
+      cluster: mgmt
+      name: rate-limiter
+      namespace: gloo-mesh-addons
+EOF
+```
+
+Finally, you need to update the `RouteTable` to use this `RateLimitPolicy`:
+
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: networking.gloo.solo.io/v2
+kind: RouteTable
+metadata:
+  name: httpbin
+  namespace: httpbin
+  labels:
+    expose: "true"
+spec:
+  hosts:
+    - '*'
+  virtualGateways:
+    - name: north-south-gw-443
+      namespace: istio-gateways
+      cluster: mgmt
+  workloadSelectors: []
+  http:
+    - name: httpbin
+      labels:
+        ratelimited: "true"
+      matchers:
+      - uri:
+          exact: /get
+      forwardTo:
+        destinations:
+        - ref:
+            name: in-mesh
+            namespace: httpbin
+          port:
+            number: 8000
+EOF
+```
+
+Refresh the web page multiple times.
+
 ## Lab 13 - Use the Web Application Firewall filter <a name="Lab-13"></a>
 A web application firewall (WAF) protects web applications by monitoring, filtering, and blocking potentially harmful traffic and attacks that can overtake or exploit them.
 
