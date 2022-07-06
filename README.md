@@ -26,10 +26,11 @@ source ./scripts/assert.sh
 * [Lab 10 - Create the httpbin workspace](#Lab-10)
 * [Lab 11 - Expose an external service](#Lab-11)
 * [Lab 12 - Implement Rate Limiting policy on httpbin](#Lab-12)
-* [Lab 13 - Use the Web Application Firewall filter](#Lab-13)
-* [Lab 14 - Exploring the Gloo Mesh Enterprise UI](#Lab-14)
-* [Lab 15 - Exposing the Gloo Mesh UI](#Lab-15)
-* [Lab 16 - Integrate Gloo Mesh UI with OIDC](#Lab-16)
+* [Lab 13 - Use the Transformation filter](#Lab-13)
+* [Lab 14 - Use the Web Application Firewall filter](#Lab-14)
+* [Lab 15 - Exploring the Gloo Mesh Enterprise UI](#Lab-15)
+* [Lab 16 - Exposing the Gloo Mesh UI](#Lab-16)
+* [Lab 17 - Integrate Gloo Mesh UI with OIDC](#Lab-17)
 
 
 ## Introduction to Gloo Mesh <a name="introduction"></a>
@@ -1726,6 +1727,7 @@ spec:
     - name: httpbin
       labels:
         waf: "true"
+        ratelimited: "true"
       matchers:
       - uri:
           exact: /get
