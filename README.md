@@ -1664,15 +1664,6 @@ Too many Requests!
 Try again after a minute
 ```
 
-### cleanup
-Not necessary for the workshop, but if you want to clean up the rate limit objects you can use the commands below
-```
-kubectl --context ${MGMT} -n httpbin delete ratelimitpolicy httpbin
-kubectl --context ${MGMT} -n httpbin delete ratelimitclientconfig httpbin
-kubectl --context ${MGMT} -n httpbin delete ratelimitserverconfig httpbin
-kubectl --context ${MGMT} -n httpbin delete ratelimitserversettings rate-limit-server
-```
-
 ## Lab 14 - Use the Web Application Firewall filter <a name="Lab-14"></a>
 A web application firewall (WAF) protects web applications by monitoring, filtering, and blocking potentially harmful traffic and attacks that can overtake or exploit them.
 
@@ -1767,8 +1758,10 @@ server: istio-envoy
 Log4Shell malicious payload
 ```
 
-### cleanup
-Let's apply the original `RouteTable` yaml:
+### cleanup labs 12-14
+Not necessary for the workshop, but if you want to clean up the rate limit, WAF, and transformation objects from these past couple labs you can use the commands below
+
+First let's apply the original `RouteTable` yaml:
 ```bash
 kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: networking.gloo.solo.io/v2
@@ -1801,10 +1794,16 @@ spec:
 EOF
 ```
 
-And also delete the waf policy we've created:
+Then we can also delete the various policies we've created:
 ```bash
-kubectl --context ${MGMT} -n httpbin delete wafpolicies.security.policy.gloo.solo.io log4shell
-```
+# rate limiting
+kubectl --context ${MGMT} -n httpbin delete ratelimitpolicy httpbin
+kubectl --context ${MGMT} -n httpbin delete ratelimitclientconfig httpbin
+kubectl --context ${MGMT} -n httpbin delete ratelimitserverconfig httpbin
+kubectl --context ${MGMT} -n httpbin delete ratelimitserversettings rate-limit-server
+
+# transformation
+kubectl --context ${MGMT} -n httpbin delete transformationpolicy ratelimit-transformation
 
 ## Lab 15 - Exploring the Gloo Mesh Enterprise UI <a name="Lab-15"></a>
 
