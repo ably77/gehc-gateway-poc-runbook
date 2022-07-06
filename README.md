@@ -1503,7 +1503,8 @@ spec:
           - key: remote_address
             rateLimit:
               requestsPerUnit: 5
-              unit: MINUTEEOF
+              unit: MINUTE
+EOF
 ```
 
 After that, we need to create a `RateLimitPolicy` object to define the descriptors:
