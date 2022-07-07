@@ -31,7 +31,7 @@ source ./scripts/assert.sh
 * [Lab 15 - Exploring the Gloo Mesh Enterprise UI](#Lab-15)
 * [Lab 16 - Exposing the Gloo Mesh UI](#Lab-16)
 * [Lab 17 - Integrate Gloo Mesh UI with OIDC](#Lab-17)
-
+* [Lab 18 - Securing Application access with OAuth](#Lab-18)
 
 ## Introduction to Gloo Mesh <a name="introduction"></a>
 
@@ -207,54 +207,9 @@ gateways:
       service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
       service.beta.kubernetes.io/aws-load-balancer-type: external
 EOF
-
-helm --kube-context=${MGMT} upgrade --install istio-eastwestgateway ./istio-1.13.4/manifests/charts/gateways/istio-ingress -n istio-gateways --values - <<EOF
-global:
-  hub: us-docker.pkg.dev/gloo-mesh/istio-workshops
-  tag: 1.13.4-solo
-gateways:
-  istio-ingressgateway:
-    name: istio-eastwestgateway
-    namespace: istio-gateways
-    labels:
-      istio: eastwestgateway
-      topology.istio.io/network: network1
-    injectionTemplate: gateway
-    type: LoadBalancer
-    ports:
-    - name: tcp-status-port
-      port: 15021
-      targetPort: 15021
-    - name: tls
-      port: 15443
-      targetPort: 15443
-    - name: tcp-istiod
-      port: 15012
-      targetPort: 15012
-    - name: tcp-webhook
-      port: 15017
-      targetPort: 15017
-    serviceAnnotations:
-      meta.helm.sh/release-name: istio-ingressgateway
-      meta.helm.sh/release-namespace: istio-gateways
-      service.beta.kubernetes.io/aws-load-balancer-backend-protocol: TCP
-      service.beta.kubernetes.io/aws-load-balancer-healthcheck-healthy-threshold: "2"
-      service.beta.kubernetes.io/aws-load-balancer-healthcheck-interval: "10"
-      service.beta.kubernetes.io/aws-load-balancer-healthcheck-port: "15021"
-      service.beta.kubernetes.io/aws-load-balancer-healthcheck-protocol: tcp
-      service.beta.kubernetes.io/aws-load-balancer-healthcheck-unhealthy-threshold: "2"
-      service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
-      service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
-      service.beta.kubernetes.io/aws-load-balancer-type: external
-    env:
-      ISTIO_META_ROUTER_MODE: "sni-dnat"
-      ISTIO_META_REQUESTED_NETWORK_VIEW: "network1"
-EOF
 ```
 
-As you can see, we deploy the control plane (istiod) in the `istio-system` and gateway(s) in the `istio-gateways` namespace.
-
-One gateway will be used for ingress traffic while the other one will be used for cross cluster communications. It's not mandatory to use separate gateways, but it's a best practice.
+As you can see, we deploy the control plane (istiod) in the `istio-system` and the ingress gateway in the `istio-gateways` namespace.
 
 Note that we set the `trust domain` to be the same as the cluster name and we configure the sidecars to send their metrics and access logs to the Gloo Mesh agent.
 
@@ -270,7 +225,6 @@ When they are ready, you should get this output:
 NAME                      READY   STATUS    RESTARTS   AGE
 istiod-5c669bcf6f-2hn6c   1/1     Running   0          3m7s
 NAME                                     READY   STATUS    RESTARTS   AGE
-istio-eastwestgateway-77f79cdb47-f4r7k   1/1     Running   0          2m53s
 istio-ingressgateway-744fcf4fb-5dc7q     1/1     Running   0          2m44s
 ```
 
@@ -617,24 +571,6 @@ helm upgrade --install gloo-mesh-agent-addons gloo-mesh-agent/gloo-mesh-agent \
   --set rate-limiter.enabled=true \
   --set ext-auth-service.enabled=true \
   --version 2.0.8
-```
-
-Finally, you need to specify which gateways you want to use for cross cluster traffic:
-
-```bash
-cat <<EOF | kubectl --context ${MGMT} apply -f -
-apiVersion: admin.gloo.solo.io/v2
-kind: WorkspaceSettings
-metadata:
-  name: global
-  namespace: gloo-mesh
-spec:
-  options:
-    eastWestGateways:
-      - selector:
-          labels:
-            istio: eastwestgateway
-EOF
 ```
 
 This is how to environment looks like now:
@@ -2113,3 +2049,148 @@ To access the Gloo Mesh UI protected by OIDC we must properly configure DNS to m
 
 Once configured, you should be able to access the Gloo Mesh UI at https://gmui.glootest.com and it should be now be protected by OIDC.
 
+## Lab 18 - Securing Application access with OAuth <a name="Lab-18"></a>
+In this step, we're going to secure the access to the `httpbin` service using OAuth. This example will use an Okta Developer Account workflow as an example, but should be compatible with the OIDC provider used in Lab 17 above
+
+First, we need to create a Kubernetes Secret that contains the OIDC client-secret. Please provide this value input before running the command below:
+```bash
+export HTTPBIN_CLIENT_SECRET="<provide OIDC client secret here"
+```
+
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: httpbin-okta-client-secret
+  namespace: httpbin
+type: extauth.solo.io/oauth
+data:
+  client-secret: $(echo -n ${HTTPBIN_CLIENT_SECRET} | base64)
+EOF
+```
+
+Then, you need to create an `ExtAuthPolicy`, which is a CRD that contains authentication information. Please provide this value input before running the command below: 
+```
+export APP_CALLBACK_URL="https://httpbin.glootest.com/get"
+export OIDC_CLIENT_ID="ABCDEFG"
+export ISSUER_URL="https://dev-account.okta.com/oauth2/default"
+```
+
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: security.policy.gloo.solo.io/v2
+kind: ExtAuthPolicy
+metadata:
+  name: httpbin
+  namespace: httpbin
+spec:
+  applyToRoutes:
+  - route:
+      labels:
+        oauth: "true"
+  config:
+    server:
+      name: ext-auth-server
+      namespace: gloo-mesh
+      cluster: mgmt
+    glooAuth:
+      configs:
+      - oauth2:
+          oidcAuthorizationCode:
+            appUrl: ${APP_CALLBACK_URL}
+            callbackPath: /callback
+            clientId: ${OIDC_CLIENT_ID}
+            clientSecretRef:
+              name: httpbin-okta-client-secret
+              namespace: httpbin
+            issuerUrl: ${OIDC_ISSUER_URL}
+            session:
+              failOnFetchFailure: true
+              redis:
+                cookieName: okta-session
+                options:
+                  host: redis.gloo-mesh-addons:6379
+                allowRefreshing: false
+              cookieOptions:
+                maxAge: "1800"
+            scopes:
+            - email
+            logoutPath: /logout
+            afterLogoutUrl: /get
+            headers:
+              idTokenHeader: Jwt
+              #idTokenHeader: x-id-token
+              #accessTokenHeader: x-access-token
+EOF
+```
+
+After that, you need to create an `ExtAuthServer`, which is a CRD that define which extauth server to use: 
+
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: admin.gloo.solo.io/v2
+kind: ExtAuthServer
+metadata:
+  name: ext-auth-server
+  namespace: gloo-mesh
+spec:
+  destinationServer:
+    ref:
+      cluster: mgmt
+      name: ext-auth-service
+      namespace: gloo-mesh-addons
+    port:
+      name: grpc
+EOF
+```
+
+Finally, you need to update the `RouteTable` to use this `AuthConfig`:
+
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: networking.gloo.solo.io/v2
+kind: RouteTable
+metadata:
+  name: httpbin-rt-443
+  namespace: httpbin
+  labels:
+    expose: "true"
+spec:
+  hosts:
+    - 'httpbin.glootest.com'
+    - '*'
+  virtualGateways:
+    - name: north-south-gw-443
+      namespace: istio-gateways
+      cluster: mgmt
+  workloadSelectors: []
+  http:
+    - name: httpbin
+      labels:
+        oauth: "true"
+      matchers:
+      - uri:
+          exact: /get
+      - uri:
+          prefix: /callback
+      - uri:
+          prefix: /logout
+      forwardTo:
+        destinations:
+        - ref:
+            name: in-mesh
+            namespace: httpbin
+          port:
+            number: 8000
+EOF
+```
+
+To access the httpbin app protected by OIDC we must properly configure DNS to map to the `<app_url>` defined above to our gateway IP (i.e. https://httpbin.glootest.com/get). One method is to modify your `/etc/hosts` file locally
+```
+# mgmt
+<GATEWAY_IP> gmui.glootest.com
+<GATEWAY_IP> httpbin.glootest.com
+```
+
+Now when you access your httpbin app through the browser, it will be protected by the OIDC provider login page
