@@ -1732,6 +1732,9 @@ EOF
 
 Then we can also delete the various policies we've created:
 ```
+# external service
+kubectl --context ${MGMT} -n httpbin delete externalservice httpbin
+
 # rate limiting
 kubectl --context ${MGMT} -n httpbin delete ratelimitpolicy httpbin
 kubectl --context ${MGMT} -n httpbin delete ratelimitclientconfig httpbin
@@ -2054,7 +2057,7 @@ In this step, we're going to secure the access to the `httpbin` service using OA
 
 First, we need to create a Kubernetes Secret that contains the OIDC client-secret. Please provide this value input before running the command below:
 ```bash
-export HTTPBIN_CLIENT_SECRET="<provide OIDC client secret here"
+export HTTPBIN_CLIENT_SECRET="<provide OIDC client secret here>"
 ```
 
 ```bash
@@ -2073,8 +2076,8 @@ EOF
 Then, you need to create an `ExtAuthPolicy`, which is a CRD that contains authentication information. Please provide this value input before running the command below: 
 ```
 export APP_CALLBACK_URL="https://httpbin.glootest.com/get"
-export OIDC_CLIENT_ID="ABCDEFG"
-export ISSUER_URL="https://dev-account.okta.com/oauth2/default"
+export OIDC_CLIENT_ID="0oa1m92a1oDelGCg1234"
+export ISSUER_URL="https://dev-22651234.okta.com/oauth2/default"
 ```
 
 ```bash
@@ -2091,8 +2094,8 @@ spec:
         oauth: "true"
   config:
     server:
-      name: ext-auth-server
-      namespace: gloo-mesh
+      name: mgmt-ext-auth-server
+      namespace: httpbin
       cluster: mgmt
     glooAuth:
       configs:
@@ -2104,7 +2107,7 @@ spec:
             clientSecretRef:
               name: httpbin-okta-client-secret
               namespace: httpbin
-            issuerUrl: ${OIDC_ISSUER_URL}
+            issuerUrl: ${ISSUER_URL}
             session:
               failOnFetchFailure: true
               redis:
@@ -2118,8 +2121,8 @@ spec:
             - email
             logoutPath: /logout
             afterLogoutUrl: /get
-            headers:
-              idTokenHeader: Jwt
+            #headers:
+              #idTokenHeader: Jwt
               #idTokenHeader: x-id-token
               #accessTokenHeader: x-access-token
 EOF
@@ -2132,8 +2135,8 @@ kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: admin.gloo.solo.io/v2
 kind: ExtAuthServer
 metadata:
-  name: ext-auth-server
-  namespace: gloo-mesh
+  name: mgmt-ext-auth-server
+  namespace: httpbin
 spec:
   destinationServer:
     ref:
@@ -2152,7 +2155,7 @@ kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: networking.gloo.solo.io/v2
 kind: RouteTable
 metadata:
-  name: httpbin-rt-443
+  name: httpbin
   namespace: httpbin
   labels:
     expose: "true"
@@ -2194,3 +2197,44 @@ To access the httpbin app protected by OIDC we must properly configure DNS to ma
 ```
 
 Now when you access your httpbin app through the browser, it will be protected by the OIDC provider login page
+
+### cleanup
+First let's apply the original `RouteTable` yaml:
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: networking.gloo.solo.io/v2
+kind: RouteTable
+metadata:
+  name: httpbin
+  namespace: httpbin
+  labels:
+    expose: "true"
+spec:
+  hosts:
+    - '*'
+  virtualGateways:
+    - name: north-south-gw-443
+      namespace: istio-gateways
+      cluster: mgmt
+  workloadSelectors: []
+  http:
+    - name: httpbin
+      matchers:
+      - uri:
+          exact: /get
+      forwardTo:
+        destinations:
+        - ref:
+            name: in-mesh
+            namespace: httpbin
+          port:
+            number: 8000
+EOF
+```
+
+Lets clean up the OAuth policies we've created:
+```
+kubectl --context ${MGMT} -n httpbin delete ExtAuthPolicy httpbin
+kubectl --context ${MGMT} -n httpbin delete secret httpbin-okta-client-secret
+kubectl --context ${MGMT} -n gloo-mesh delete ExtAuthServer mgmt-ext-auth-server
+```
