@@ -32,6 +32,7 @@ source ./scripts/assert.sh
 * [Lab 16 - Exposing the Gloo Mesh UI](#Lab-16)
 * [Lab 17 - Integrate Gloo Mesh UI with OIDC](#Lab-17)
 * [Lab 18 - Securing Application access with OAuth](#Lab-18)
+* [Lab 19 - Integrating with OPA](#Lab-19)
 
 ## Introduction to Gloo Mesh <a name="introduction"></a>
 
