@@ -2198,7 +2198,254 @@ To access the httpbin app protected by OIDC we must properly configure DNS to ma
 
 Now when you access your httpbin app through the browser, it will be protected by the OIDC provider login page
 
-### cleanup
+## Lab 19 - Integrating with OPA <a name="Lab-19"></a>
+
+You can also perform authorization using OPA.
+
+First, you need to create a `ConfigMap` with the policy written in rego:
+
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: allow-solo-email-users
+  namespace: httpbin
+data:
+  policy.rego: |-
+    package test
+
+    default allow = false
+
+    allow {
+        [header, payload, signature] = io.jwt.decode(input.state.jwt)
+        endswith(payload["email"], "@solo.io")
+    }
+EOF
+```
+
+Then, you need to update the `AuthConfig` object to add the authorization step:
+
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: security.policy.gloo.solo.io/v2
+kind: ExtAuthPolicy
+metadata:
+  name: httpbin
+  namespace: httpbin
+spec:
+  applyToRoutes:
+  - route:
+      labels:
+        oauth: "true"
+  config:
+    server:
+      name: mgmt-ext-auth-server
+      namespace: httpbin
+      cluster: mgmt
+    glooAuth:
+      configs:
+      - oauth2:
+          oidcAuthorizationCode:
+            appUrl: ${APP_CALLBACK_URL}
+            callbackPath: /callback
+            clientId: ${OIDC_CLIENT_ID}
+            clientSecretRef:
+              name: httpbin-okta-client-secret
+              namespace: httpbin
+            issuerUrl: ${ISSUER_URL}
+            session:
+              failOnFetchFailure: true
+              redis:
+                cookieName: okta-session
+                options:
+                  host: redis.gloo-mesh-addons:6379
+                allowRefreshing: false
+              cookieOptions:
+                maxAge: "1800"
+            scopes:
+            - email
+            logoutPath: /logout
+            afterLogoutUrl: /get
+            #headers:
+              #idTokenHeader: Jwt
+              #idTokenHeader: x-id-token
+              #accessTokenHeader: x-access-token
+      - opaAuth:
+          modules:
+          - name: allow-solo-email-users
+            namespace: httpbin
+          query: "data.test.allow == true"
+EOF
+```
+
+Another example that uses OPA to enforce a specific HTTP method
+
+First we can create a policy called `allow-put-only`
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: allow-put-only
+  namespace: httpbin
+data:
+  policy.rego: |-
+    package test
+   
+    default allow = false
+    allow {
+        input.http_request.path == "/get"
+        any({input.http_request.method == "PUT"
+        })
+    }
+EOF
+```
+
+Next we can create a policy called `allow-get-only`
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: allow-get-only
+  namespace: httpbin
+data:
+  policy.rego: |-
+    package test
+   
+    default allow = false
+    allow {
+        input.http_request.path == "/get"
+        any({input.http_request.method == "GET"
+        })
+    }
+EOF
+```
+
+To validate that OPA is working we can first enable our `allow-put-only` policy on our httpbin /get endpoint
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: security.policy.gloo.solo.io/v2
+kind: ExtAuthPolicy
+metadata:
+  name: httpbin
+  namespace: httpbin
+spec:
+  applyToRoutes:
+  - route:
+      labels:
+        oauth: "true"
+  config:
+    server:
+      name: mgmt-ext-auth-server
+      namespace: httpbin
+      cluster: mgmt
+    glooAuth:
+      configs:
+      - oauth2:
+          oidcAuthorizationCode:
+            appUrl: ${APP_CALLBACK_URL}
+            callbackPath: /callback
+            clientId: ${OIDC_CLIENT_ID}
+            clientSecretRef:
+              name: httpbin-okta-client-secret
+              namespace: httpbin
+            issuerUrl: ${ISSUER_URL}
+            session:
+              failOnFetchFailure: true
+              redis:
+                cookieName: okta-session
+                options:
+                  host: redis.gloo-mesh-addons:6379
+                allowRefreshing: false
+              cookieOptions:
+                maxAge: "1800"
+            scopes:
+            - email
+            logoutPath: /logout
+            afterLogoutUrl: /get
+            #headers:
+              #idTokenHeader: Jwt
+              #idTokenHeader: x-id-token
+              #accessTokenHeader: x-access-token
+      - opaAuth:
+          modules:
+          - name: allow-solo-email-users
+            namespace: httpbin
+          query: "data.test.allow == true"
+      - opaAuth:
+          modules:
+          - name: allow-put-only
+            namespace: httpbin
+          query: "data.test.allow == true"
+EOF
+```
+
+When refreshing in the browser now we should see a 403 Authorization Error when accessing our /get endpoint
+
+Let's fix this by listing the correct OPA module `allow-get-only` that we already created
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: security.policy.gloo.solo.io/v2
+kind: ExtAuthPolicy
+metadata:
+  name: httpbin
+  namespace: httpbin
+spec:
+  applyToRoutes:
+  - route:
+      labels:
+        oauth: "true"
+  config:
+    server:
+      name: mgmt-ext-auth-server
+      namespace: httpbin
+      cluster: mgmt
+    glooAuth:
+      configs:
+      - oauth2:
+          oidcAuthorizationCode:
+            appUrl: ${APP_CALLBACK_URL}
+            callbackPath: /callback
+            clientId: ${OIDC_CLIENT_ID}
+            clientSecretRef:
+              name: httpbin-okta-client-secret
+              namespace: httpbin
+            issuerUrl: ${ISSUER_URL}
+            session:
+              failOnFetchFailure: true
+              redis:
+                cookieName: okta-session
+                options:
+                  host: redis.gloo-mesh-addons:6379
+                allowRefreshing: false
+              cookieOptions:
+                maxAge: "1800"
+            scopes:
+            - email
+            logoutPath: /logout
+            afterLogoutUrl: /get
+            #headers:
+              #idTokenHeader: Jwt
+              #idTokenHeader: x-id-token
+              #accessTokenHeader: x-access-token
+      - opaAuth:
+          modules:
+          - name: allow-solo-email-users
+            namespace: httpbin
+          query: "data.test.allow == true"
+      - opaAuth:
+          modules:
+          - name: allow-get-only
+            namespace: httpbin
+          query: "data.test.allow == true"
+EOF
+```
+
+Now we should be able to access our application
+
+### cleanup labs 18 and 19
 First let's apply the original `RouteTable` yaml:
 ```bash
 kubectl --context ${MGMT} apply -f - <<EOF
@@ -2232,9 +2479,15 @@ spec:
 EOF
 ```
 
+Refresh the web page. `@gmail.com` shouldn't be allowed to access it anymore since the user's email does not end with `@solo.io`.
+
 Lets clean up the OAuth policies we've created:
 ```
 kubectl --context ${MGMT} -n httpbin delete ExtAuthPolicy httpbin
 kubectl --context ${MGMT} -n httpbin delete secret httpbin-okta-client-secret
 kubectl --context ${MGMT} -n gloo-mesh delete ExtAuthServer mgmt-ext-auth-server
+
+kubectl --context ${MGMT} -n httpbin delete configmap allow-get-only
+kubectl --context ${MGMT} -n httpbin delete configmap allow-put-only
+kubectl --context ${MGMT} -n httpbin delete configmap allow-solo-email-users
 ```
