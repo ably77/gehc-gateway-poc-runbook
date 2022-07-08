@@ -33,6 +33,10 @@ source ./scripts/assert.sh
 * [Lab 17 - Integrate Gloo Mesh UI with OIDC](#Lab-17)
 * [Lab 18 - Securing Application access with OAuth](#Lab-18)
 * [Lab 19 - Integrating with OPA](#Lab-19)
+* [Lab 20 - Use the JWT filter to create headers from claims](#Lab-20)
+* [Lab 21 - Use the transformation filter to manipulate headers](#Lab-21)
+
+
 
 ## Introduction to Gloo Mesh <a name="introduction"></a>
 
@@ -2582,7 +2586,7 @@ You can see that it will be applied to our existing route and also that we want 
 
 If you refresh the web page, you should see a new `X-Organization` header added to the request with the value `solo.io`!
 
-### cleanup labs 18-20
+### cleanup labs 18-21
 First let's apply the original `RouteTable` yaml:
 ```bash
 kubectl --context ${MGMT} apply -f - <<EOF
