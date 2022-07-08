@@ -2124,12 +2124,12 @@ spec:
                 maxAge: "1800"
             scopes:
             - email
+            - profile
             logoutPath: /logout
             afterLogoutUrl: /get
-            #headers:
-              #idTokenHeader: Jwt
-              #idTokenHeader: x-id-token
-              #accessTokenHeader: x-access-token
+            headers:
+              idTokenHeader: Jwt
+              accessTokenHeader: access-token
 EOF
 ```
 
@@ -2276,8 +2276,7 @@ spec:
             afterLogoutUrl: /get
             headers:
               idTokenHeader: Jwt
-              #idTokenHeader: x-id-token
-              #accessTokenHeader: x-access-token
+              accessTokenHeader: access-token
       - opaAuth:
           modules:
           - name: allow-solo-email-users
@@ -2375,8 +2374,7 @@ spec:
             afterLogoutUrl: /get
             headers:
               idTokenHeader: Jwt
-              #idTokenHeader: x-id-token
-              #accessTokenHeader: x-access-token
+              accessTokenHeader: access-token
       - opaAuth:
           modules:
           - name: allow-solo-email-users
@@ -2437,8 +2435,7 @@ spec:
             afterLogoutUrl: /get
             headers:
               idTokenHeader: Jwt
-              #idTokenHeader: x-id-token
-              #accessTokenHeader: x-access-token
+              accessTokenHeader: access-token
       - opaAuth:
           modules:
           - name: allow-solo-email-users
@@ -2628,8 +2625,8 @@ kubectl --context ${MGMT} -n httpbin delete secret httpbin-okta-client-secret
 kubectl --context ${MGMT} -n httpbin delete ExtAuthServer mgmt-ext-auth-server
 
 # opa config
-kubectl --context ${MGMT} -n httpbin delete configmap allow-get-only
-kubectl --context ${MGMT} -n httpbin delete configmap allow-put-only
+kubectl --context ${MGMT} -n httpbin delete configmap allow-get
+kubectl --context ${MGMT} -n httpbin delete configmap allow-put
 kubectl --context ${MGMT} -n httpbin delete configmap allow-solo-email-users
 
 # jwtpolicy
