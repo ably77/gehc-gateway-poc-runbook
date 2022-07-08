@@ -1286,6 +1286,8 @@ spec:
       matchers:
       - uri:
           exact: /get
+      - uri:
+          exact: /anything
       forwardTo:
         destinations:
         - kind: EXTERNAL_SERVICE
@@ -1328,6 +1330,8 @@ spec:
       matchers:
       - uri:
           exact: /get
+      - uri:
+          exact: /anything
       forwardTo:
         destinations:
         - kind: EXTERNAL_SERVICE
@@ -1376,6 +1380,8 @@ spec:
       matchers:
       - uri:
           exact: /get
+      - uri:
+          exact: /anything
       forwardTo:
         destinations:
         - ref:
@@ -1529,6 +1535,8 @@ spec:
       matchers:
       - uri:
           exact: /get
+      - uri:
+          exact: /anything
       forwardTo:
         destinations:
         - ref:
@@ -1672,6 +1680,8 @@ spec:
       matchers:
       - uri:
           exact: /get
+      - uri:
+          exact: /anything
       forwardTo:
         destinations:
         - ref:
@@ -1725,6 +1735,8 @@ spec:
       matchers:
       - uri:
           exact: /get
+      - uri:
+          exact: /anything
       forwardTo:
         destinations:
         - ref:
@@ -1870,7 +1882,7 @@ gloo-mesh-ui-54c67b5bc6-bwv5n            4/4     Running   1 (56m ago)   56m
 ```
 
 ### Create our Virtual Destination and Route Table
-```
+```bash
 kubectl apply --context ${MGMT} -f- <<EOF
 apiVersion: networking.gloo.solo.io/v2
 kind: RouteTable
@@ -1939,7 +1951,7 @@ echo "http://${ENDPOINT_HTTP_GW_MGMT}"
 ```
 
 Alternatively you can also apply the `RouteTable` to the gateway on 443 instead
-```
+```bash
 kubectl apply --context ${MGMT} -f- <<EOF
 apiVersion: networking.gloo.solo.io/v2
 kind: RouteTable
@@ -2180,6 +2192,8 @@ spec:
       matchers:
       - uri:
           exact: /get
+      - uri:
+          exact: /anything
       - uri:
           prefix: /callback
       - uri:
@@ -2542,6 +2556,8 @@ spec:
       matchers:
       - uri:
           exact: /get
+      - uri:
+          exact: /anything
       forwardTo:
         destinations:
         - ref:
