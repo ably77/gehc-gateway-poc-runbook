@@ -2216,7 +2216,7 @@ kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: allow-solo-email-users
+  name: allow-email-suffix
   namespace: httpbin
 data:
   policy.rego: |-
@@ -2279,177 +2279,114 @@ spec:
               accessTokenHeader: access-token
       - opaAuth:
           modules:
-          - name: allow-solo-email-users
+          - name: allow-email-suffix
             namespace: httpbin
           query: "data.ehs.allow == true"
 EOF
 ```
 Now we should see success when logging in with a username that ends with `@solo.io` but will encounter a `403 Error - You don't have authorization to view this page` when using a username that ends with anything else (`@gmail.com` for example)
 
+### Expand to other email suffixes
+We can expand on our example to accept users with `@gmail.com` by modifying the rego rule
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: allow-email-suffix
+  namespace: httpbin
+data:
+  policy.rego: |-
+    package ehs
+
+    default allow = false
+
+    allow {
+        [header, payload, signature] = io.jwt.decode(input.state.jwt)
+        endswith(payload["email"], "@solo.io")
+    }
+    allow {
+        [header, payload, signature] = io.jwt.decode(input.state.jwt)
+        endswith(payload["email"], "@gmail.com")
+    }
+EOF
+```
+
+Now you should be able to access the app logging in with users that end in `@gmail.com` as well as `@solo.io`
+
 ### Use OPA to enforce a specific HTTP method
-Another example that uses OPA to enforce a specific HTTP method
+Let's continue to expand on our example by enforcing different HTTP methods for our two types of users
+```
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: allow-email-suffix
+  namespace: httpbin
+data:
+  policy.rego: |-
+    package ehs
 
-First we can create a policy called `allow-put`
+    default allow = false
+
+    allow {
+        [header, payload, signature] = io.jwt.decode(input.state.jwt)
+        endswith(payload["email"], "@solo.io")
+        any({input.http_request.method == "GET",
+             input.http_request.method == "POST",
+             input.http_request.method == "PUT",
+             input.http_request.method == "DELETE",
+    })
+    }
+    allow {
+        [header, payload, signature] = io.jwt.decode(input.state.jwt)
+        endswith(payload["email"], "@gmail.com")
+        any({input.http_request.method == "POST",
+             input.http_request.method == "PUT",
+             input.http_request.method == "DELETE",
+    })
+    }
+EOF
+```
+
+If you refresh the browser where the `@gmail.com` user is logged in, we should now see a `403 Error - You don't have authorization to view this page`. This is because we are not allowing the `GET` method for the `@gmail.com` user in our OPA policy
+
+Let's fix that
 ```bash
 kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: allow-put
+  name: allow-email-suffix
   namespace: httpbin
 data:
   policy.rego: |-
     package ehs
-   
+
     default allow = false
+
     allow {
-        input.http_request.path == "/get"
-        any({input.http_request.method == "PUT"
-        })
+        [header, payload, signature] = io.jwt.decode(input.state.jwt)
+        endswith(payload["email"], "@solo.io")
+        any({input.http_request.method == "GET",
+             input.http_request.method == "POST",
+             input.http_request.method == "PUT",
+             input.http_request.method == "DELETE",
+    })
+    }
+    allow {
+        [header, payload, signature] = io.jwt.decode(input.state.jwt)
+        endswith(payload["email"], "@gmail.com")
+        any({input.http_request.method == "GET",
+             input.http_request.method == "POST",
+             input.http_request.method == "PUT",
+             input.http_request.method == "DELETE",
+    })
     }
 EOF
 ```
 
-Next we can create a policy called `allow-get`
-```bash
-kubectl --context ${MGMT} apply -f - <<EOF
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: allow-get
-  namespace: httpbin
-data:
-  policy.rego: |-
-    package ehs
-   
-    default allow = false
-    allow {
-        input.http_request.method == "GET"
-    }
-EOF
-```
-
-To validate that OPA is working we can first enable our `allow-put` policy on our httpbin ExtAuthPolicy
-```bash
-kubectl --context ${MGMT} apply -f - <<EOF
-apiVersion: security.policy.gloo.solo.io/v2
-kind: ExtAuthPolicy
-metadata:
-  name: httpbin
-  namespace: httpbin
-spec:
-  applyToRoutes:
-  - route:
-      labels:
-        oauth: "true"
-  config:
-    server:
-      name: mgmt-ext-auth-server
-      namespace: httpbin
-      cluster: mgmt
-    glooAuth:
-      configs:
-      - oauth2:
-          oidcAuthorizationCode:
-            appUrl: https://httpbin.glootest.com/get
-            callbackPath: /callback
-            clientId: 0oa1m92a1oDelGCgw5d7
-            clientSecretRef:
-              name: httpbin-okta-client-secret
-              namespace: httpbin
-            issuerUrl: https://dev-22653158.okta.com/oauth2/default
-            session:
-              failOnFetchFailure: true
-              redis:
-                cookieName: okta-session
-                options:
-                  host: redis.gloo-mesh-addons:6379
-                allowRefreshing: false
-              cookieOptions:
-                maxAge: "1800"
-            scopes:
-            - email
-            - profile
-            logoutPath: /logout
-            afterLogoutUrl: /get
-            headers:
-              idTokenHeader: Jwt
-              accessTokenHeader: access-token
-      - opaAuth:
-          modules:
-          - name: allow-solo-email-users
-            namespace: httpbin
-          query: "data.ehs.allow == true"
-      - opaAuth:
-          modules:
-          - name: allow-put
-            namespace: httpbin
-          query: "data.ehs.allow == true"
-EOF
-```
-
-When refreshing in the browser now we should see a 403 Authorization Error when accessing our /get endpoint
-
-Let's fix this by listing the correct OPA module `allow-get` that we already created
-```bash
-kubectl --context ${MGMT} apply -f - <<EOF
-apiVersion: security.policy.gloo.solo.io/v2
-kind: ExtAuthPolicy
-metadata:
-  name: httpbin
-  namespace: httpbin
-spec:
-  applyToRoutes:
-  - route:
-      labels:
-        oauth: "true"
-  config:
-    server:
-      name: mgmt-ext-auth-server
-      namespace: httpbin
-      cluster: mgmt
-    glooAuth:
-      configs:
-      - oauth2:
-          oidcAuthorizationCode:
-            appUrl: https://httpbin.glootest.com/get
-            callbackPath: /callback
-            clientId: 0oa1m92a1oDelGCgw5d7
-            clientSecretRef:
-              name: httpbin-okta-client-secret
-              namespace: httpbin
-            issuerUrl: https://dev-22653158.okta.com/oauth2/default
-            session:
-              failOnFetchFailure: true
-              redis:
-                cookieName: okta-session
-                options:
-                  host: redis.gloo-mesh-addons:6379
-                allowRefreshing: false
-              cookieOptions:
-                maxAge: "1800"
-            scopes:
-            - email
-            - profile
-            logoutPath: /logout
-            afterLogoutUrl: /get
-            headers:
-              idTokenHeader: Jwt
-              accessTokenHeader: access-token
-      - opaAuth:
-          modules:
-          - name: allow-solo-email-users
-            namespace: httpbin
-          query: "data.ehs.allow == true"
-      - opaAuth:
-          modules:
-          - name: allow-get
-            namespace: httpbin
-          query: "data.ehs.allow == true"
-EOF
-```
-
-Now we should be able to access our application
+Now we should be able to access our app again.
 
 ## Lab 20 - Use the JWT filter to create headers from claims <a name="Lab-20"></a>
 In this step, we're going to validate the JWT token and to create a new header from the `email` claim.
