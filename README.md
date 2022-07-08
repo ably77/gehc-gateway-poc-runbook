@@ -2520,8 +2520,6 @@ spec:
     providers:
       okta:
         issuer: https://dev-22653158.okta.com/oauth2/default
-        #audiences:
-        #- "api://default"
         tokenSource:
           headers:
           - name: jwt
