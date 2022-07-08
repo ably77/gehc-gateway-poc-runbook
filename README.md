@@ -2230,7 +2230,7 @@ kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: allow-email-suffix
+  name: httpbin-opa
   namespace: httpbin
 data:
   policy.rego: |-
@@ -2293,7 +2293,7 @@ spec:
               accessTokenHeader: access-token
       - opaAuth:
           modules:
-          - name: allow-email-suffix
+          - name: httpbin-opa
             namespace: httpbin
           query: "data.ehs.allow == true"
 EOF
@@ -2307,7 +2307,7 @@ kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: allow-email-suffix
+  name: httpbin-opa
   namespace: httpbin
 data:
   policy.rego: |-
@@ -2335,7 +2335,7 @@ kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: allow-email-suffix
+  name: httpbin-opa
   namespace: httpbin
 data:
   policy.rego: |-
@@ -2371,7 +2371,7 @@ kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: allow-email-suffix
+  name: httpbin-opa
   namespace: httpbin
 data:
   policy.rego: |-
@@ -2411,7 +2411,7 @@ kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: allow-email-suffix-methods
+  name: httpbin-opa
   namespace: httpbin
 data:
   policy.rego: |-
@@ -2621,7 +2621,7 @@ kubectl --context ${MGMT} -n httpbin delete secret httpbin-okta-client-secret
 kubectl --context ${MGMT} -n httpbin delete ExtAuthServer mgmt-ext-auth-server
 
 # opa config
-kubectl --context ${MGMT} -n httpbin delete configmap allow-email-suffix
+kubectl --context ${MGMT} -n httpbin delete configmap httpbin-opa
 
 # jwtpolicy
 kubectl --context ${MGMT} -n httpbin delete externalendpoint okta-jwks
