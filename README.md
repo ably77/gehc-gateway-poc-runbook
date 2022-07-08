@@ -2402,6 +2402,51 @@ EOF
 
 Now we should be able to access our app again.
 
+### Enforce paths with OPA
+Let's continue to expand on our example by enforcing a specified path for our users
+
+Here we will modify our rego rule so that users with `@solo.io` can access the `/get` endpoint as well as any path with the prefix `/anything`, while users with `@gmail.com` can only access specifically the `/anything/protected` endpoint
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: allow-email-suffix-methods
+  namespace: httpbin
+data:
+  policy.rego: |-
+    package ehs
+
+    default allow = false
+
+    allow {
+        [header, payload, signature] = io.jwt.decode(input.state.jwt)
+        endswith(payload["email"], "@solo.io")
+        any({input.http_request.path == "/get",
+        startswith(input.http_request.path, "/anything")
+    })
+        any({input.http_request.method == "GET",
+             input.http_request.method == "POST",
+             input.http_request.method == "PUT",
+             input.http_request.method == "DELETE",
+    })
+    }
+    allow {
+        [header, payload, signature] = io.jwt.decode(input.state.jwt)
+        endswith(payload["email"], "@gmail.com")
+        input.http_request.path == "/anything/protected"
+        any({input.http_request.method == "GET",
+             input.http_request.method == "POST",
+             input.http_request.method == "PUT",
+             input.http_request.method == "DELETE",
+    })
+    }
+EOF
+```
+If you refresh the browser where the `@solo.io` user is logged in, we should be able to access the `/get` endpoint as well as any path with the prefix `/anything`. Try and access `/anything/foo` for example - it should work.
+
+If you refresh the browser where the `@gmail.com` user is logged in, we should now see a `403 Error - You don't have authorization to view this page` if you access anything other than the `/anything/protected` endpoint
+
 ## Lab 20 - Use the JWT filter to create headers from claims <a name="Lab-20"></a>
 In this step, we're going to validate the JWT token and to create a new header from the `email` claim.
 
