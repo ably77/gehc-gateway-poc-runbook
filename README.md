@@ -1287,7 +1287,7 @@ spec:
       - uri:
           exact: /get
       - uri:
-          exact: /anything
+          prefix: /anything
       forwardTo:
         destinations:
         - kind: EXTERNAL_SERVICE
@@ -1331,7 +1331,7 @@ spec:
       - uri:
           exact: /get
       - uri:
-          exact: /anything
+          prefix: /anything
       forwardTo:
         destinations:
         - kind: EXTERNAL_SERVICE
@@ -1381,7 +1381,7 @@ spec:
       - uri:
           exact: /get
       - uri:
-          exact: /anything
+          prefix: /anything
       forwardTo:
         destinations:
         - ref:
@@ -1536,7 +1536,7 @@ spec:
       - uri:
           exact: /get
       - uri:
-          exact: /anything
+          prefix: /anything
       forwardTo:
         destinations:
         - ref:
@@ -1681,7 +1681,7 @@ spec:
       - uri:
           exact: /get
       - uri:
-          exact: /anything
+          prefix: /anything
       forwardTo:
         destinations:
         - ref:
@@ -1736,7 +1736,7 @@ spec:
       - uri:
           exact: /get
       - uri:
-          exact: /anything
+          prefix: /anything
       forwardTo:
         destinations:
         - ref:
@@ -2193,7 +2193,7 @@ spec:
       - uri:
           exact: /get
       - uri:
-          exact: /anything
+          prefix: /anything
       - uri:
           prefix: /callback
       - uri:
@@ -2557,7 +2557,7 @@ spec:
       - uri:
           exact: /get
       - uri:
-          exact: /anything
+          prefix: /anything
       forwardTo:
         destinations:
         - ref:
