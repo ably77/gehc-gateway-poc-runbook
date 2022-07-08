@@ -2281,7 +2281,6 @@ spec:
           query: "data.ehs.allow == true"
 EOF
 ```
-
 Now we should see success when logging in with a username that ends with `@solo.io` but will encounter a `403 Error - You don't have authorization to view this page` when using a username that ends with anything else (`@gmail.com` for example)
 
 ### Use OPA to enforce a specific HTTP method
@@ -2547,6 +2546,42 @@ You can see that it will be applied to our existing route and also that we want 
 
 If you refresh the web page, you should see a new `X-Email` header added to the request with the value from Okta
 
+## Lab 21 - Use the transformation filter to manipulate headers <a name="Lab-21"></a>
+Let's explore using the transformation filter again, this time we're going to use a regular expression to extract a part of an existing header and to create a new one:
+
+Let's create a `TransformationPolicy` to extract the claim.
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: trafficcontrol.policy.gloo.solo.io/v2
+kind: TransformationPolicy
+metadata:
+  name: modify-x-email-header
+  namespace: httpbin
+spec:
+  applyToRoutes:
+  - route:
+      labels:
+        oauth: "true"
+  config:
+    phase:
+      postAuthz:
+        priority: 2
+    request:
+      injaTemplate:
+        extractors:
+          organization:
+            header: 'X-Email'
+            regex: '.*@(.*)$'
+            subgroup: 1
+        headers:
+          x-organization:
+            text: "{{ organization }}"
+EOF
+```
+You can see that it will be applied to our existing route and also that we want to execute it after performing the external authentication (to have access to the JWT token).
+
+If you refresh the web page, you should see a new `X-Organization` header added to the request with the value `solo.io`!
+
 ### cleanup labs 18-20
 First let's apply the original `RouteTable` yaml:
 ```bash
@@ -2581,8 +2616,6 @@ spec:
 EOF
 ```
 
-Refresh the web page. `@gmail.com` shouldn't be allowed to access it anymore since the user's email does not end with `@solo.io`.
-
 Lets clean up the OAuth policies we've created:
 ```
 # extauth config
@@ -2599,4 +2632,7 @@ kubectl --context ${MGMT} -n httpbin delete configmap allow-solo-email-users
 kubectl --context ${MGMT} -n httpbin delete externalendpoint okta-jwks
 kubectl --context ${MGMT} -n httpbin delete externalservice okta-jwks
 kubectl --context ${MGMT} -n httpbin delete jwtpolicy httpbin
+
+# transformation
+kubectl --context ${MGMT} -n httpbin delete transformationpolicy modify-x-email-header
 ```
