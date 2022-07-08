@@ -2201,10 +2201,12 @@ Now when you access your httpbin app through the browser, it will be protected b
 
 ## Lab 19 - Integrating with OPA <a name="Lab-19"></a>
 
-You can also perform authorization using OPA.
+You can also perform authorization using OPA. 
 
-First, you need to create a `ConfigMap` with the policy written in rego:
+### Enforce @solo.io username login by inspecting the JWT email payload
+For our first use-case we will decode the JWT token passed through extauth for the `email` payload, and enforce that a user logging in must end with `@solo.io` as the username with OPA
 
+First, you need to create a `ConfigMap` with the policy written in rego. 
 ```bash
 kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: v1
@@ -2214,7 +2216,7 @@ metadata:
   namespace: httpbin
 data:
   policy.rego: |-
-    package test
+    package ehs
 
     default allow = false
 
@@ -2225,8 +2227,7 @@ data:
 EOF
 ```
 
-Then, you need to update the `AuthConfig` object to add the authorization step:
-
+Then, you need to update the `ExtAuthPolicy` object to add the authorization step:
 ```bash
 kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: security.policy.gloo.solo.io/v2
@@ -2248,13 +2249,13 @@ spec:
       configs:
       - oauth2:
           oidcAuthorizationCode:
-            appUrl: ${APP_CALLBACK_URL}
+            appUrl: https://httpbin.glootest.com/get
             callbackPath: /callback
-            clientId: ${OIDC_CLIENT_ID}
+            clientId: 0oa1m92a1oDelGCgw5d7
             clientSecretRef:
               name: httpbin-okta-client-secret
               namespace: httpbin
-            issuerUrl: ${ISSUER_URL}
+            issuerUrl: https://dev-22653158.okta.com/oauth2/default
             session:
               failOnFetchFailure: true
               redis:
@@ -2266,33 +2267,37 @@ spec:
                 maxAge: "1800"
             scopes:
             - email
+            - profile
             logoutPath: /logout
             afterLogoutUrl: /get
-            #headers:
-              #idTokenHeader: Jwt
+            headers:
+              idTokenHeader: Jwt
               #idTokenHeader: x-id-token
               #accessTokenHeader: x-access-token
       - opaAuth:
           modules:
           - name: allow-solo-email-users
             namespace: httpbin
-          query: "data.test.allow == true"
+          query: "data.ehs.allow == true"
 EOF
 ```
 
+Now we should see success when logging in with a username that ends with `@solo.io` but will encounter a `403 Error - You don't have authorization to view this page` when using a username that ends with anything else (`@gmail.com` for example)
+
+### Use OPA to enforce a specific HTTP method
 Another example that uses OPA to enforce a specific HTTP method
 
-First we can create a policy called `allow-put-only`
+First we can create a policy called `allow-put`
 ```bash
 kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: allow-put-only
+  name: allow-put
   namespace: httpbin
 data:
   policy.rego: |-
-    package test
+    package ehs
    
     default allow = false
     allow {
@@ -2303,28 +2308,26 @@ data:
 EOF
 ```
 
-Next we can create a policy called `allow-get-only`
+Next we can create a policy called `allow-get`
 ```bash
 kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: allow-get-only
+  name: allow-get
   namespace: httpbin
 data:
   policy.rego: |-
-    package test
+    package ehs
    
     default allow = false
     allow {
-        input.http_request.path == "/get"
-        any({input.http_request.method == "GET"
-        })
+        input.http_request.method == "GET"
     }
 EOF
 ```
 
-To validate that OPA is working we can first enable our `allow-put-only` policy on our httpbin /get endpoint
+To validate that OPA is working we can first enable our `allow-put` policy on our httpbin ExtAuthPolicy
 ```bash
 kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: security.policy.gloo.solo.io/v2
@@ -2346,13 +2349,13 @@ spec:
       configs:
       - oauth2:
           oidcAuthorizationCode:
-            appUrl: ${APP_CALLBACK_URL}
+            appUrl: https://httpbin.glootest.com/get
             callbackPath: /callback
-            clientId: ${OIDC_CLIENT_ID}
+            clientId: 0oa1m92a1oDelGCgw5d7
             clientSecretRef:
               name: httpbin-okta-client-secret
               namespace: httpbin
-            issuerUrl: ${ISSUER_URL}
+            issuerUrl: https://dev-22653158.okta.com/oauth2/default
             session:
               failOnFetchFailure: true
               redis:
@@ -2364,28 +2367,29 @@ spec:
                 maxAge: "1800"
             scopes:
             - email
+            - profile
             logoutPath: /logout
             afterLogoutUrl: /get
-            #headers:
-              #idTokenHeader: Jwt
+            headers:
+              idTokenHeader: Jwt
               #idTokenHeader: x-id-token
               #accessTokenHeader: x-access-token
       - opaAuth:
           modules:
           - name: allow-solo-email-users
             namespace: httpbin
-          query: "data.test.allow == true"
+          query: "data.ehs.allow == true"
       - opaAuth:
           modules:
-          - name: allow-put-only
+          - name: allow-put
             namespace: httpbin
-          query: "data.test.allow == true"
+          query: "data.ehs.allow == true"
 EOF
 ```
 
 When refreshing in the browser now we should see a 403 Authorization Error when accessing our /get endpoint
 
-Let's fix this by listing the correct OPA module `allow-get-only` that we already created
+Let's fix this by listing the correct OPA module `allow-get` that we already created
 ```bash
 kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: security.policy.gloo.solo.io/v2
@@ -2407,13 +2411,13 @@ spec:
       configs:
       - oauth2:
           oidcAuthorizationCode:
-            appUrl: ${APP_CALLBACK_URL}
+            appUrl: https://httpbin.glootest.com/get
             callbackPath: /callback
-            clientId: ${OIDC_CLIENT_ID}
+            clientId: 0oa1m92a1oDelGCgw5d7
             clientSecretRef:
               name: httpbin-okta-client-secret
               namespace: httpbin
-            issuerUrl: ${ISSUER_URL}
+            issuerUrl: https://dev-22653158.okta.com/oauth2/default
             session:
               failOnFetchFailure: true
               redis:
@@ -2425,22 +2429,23 @@ spec:
                 maxAge: "1800"
             scopes:
             - email
+            - profile
             logoutPath: /logout
             afterLogoutUrl: /get
-            #headers:
-              #idTokenHeader: Jwt
+            headers:
+              idTokenHeader: Jwt
               #idTokenHeader: x-id-token
               #accessTokenHeader: x-access-token
       - opaAuth:
           modules:
           - name: allow-solo-email-users
             namespace: httpbin
-          query: "data.test.allow == true"
+          query: "data.ehs.allow == true"
       - opaAuth:
           modules:
-          - name: allow-get-only
+          - name: allow-get
             namespace: httpbin
-          query: "data.test.allow == true"
+          query: "data.ehs.allow == true"
 EOF
 ```
 
@@ -2471,7 +2476,7 @@ EOF
 ```
 
 ```bash
-kubectl --context ${CLUSTER1} apply -f - <<EOF
+kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: networking.gloo.solo.io/v2
 kind: ExternalService
 metadata:
@@ -2497,7 +2502,7 @@ Now, we can create a `JWTPolicy` to extract the claim.
 Create the policy:
 
 ```bash
-kubectl --context ${CLUSTER1} apply -f - <<EOF
+kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: security.policy.gloo.solo.io/v2
 kind: JWTPolicy
 metadata:
@@ -2583,7 +2588,7 @@ Lets clean up the OAuth policies we've created:
 # extauth config
 kubectl --context ${MGMT} -n httpbin delete ExtAuthPolicy httpbin
 kubectl --context ${MGMT} -n httpbin delete secret httpbin-okta-client-secret
-kubectl --context ${MGMT} -n gloo-mesh delete ExtAuthServer mgmt-ext-auth-server
+kubectl --context ${MGMT} -n httpbin delete ExtAuthServer mgmt-ext-auth-server
 
 # opa config
 kubectl --context ${MGMT} -n httpbin delete configmap allow-get-only
