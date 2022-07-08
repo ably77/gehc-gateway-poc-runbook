@@ -2446,7 +2446,103 @@ EOF
 
 Now we should be able to access our application
 
-### cleanup labs 18 and 19
+## Lab 20 - Use the JWT filter to create headers from claims <a name="Lab-20"></a>
+In this step, we're going to validate the JWT token and to create a new header from the `email` claim.
+
+Okta is running outside of the Service Mesh, so we need to define an `ExternalService` and its associated `ExternalEndpoint`. 
+
+Let's start by deploying the latter:
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: networking.gloo.solo.io/v2
+kind: ExternalEndpoint
+metadata:
+  name: okta-jwks
+  namespace: httpbin
+  labels:
+    host: okta-jwks
+spec:
+  #address: dev-22653158.okta.com/oauth2/default/v1/keys/
+  address: dev-22653158.okta.com
+  ports:
+  - name: https
+    number: 443
+EOF
+```
+
+```bash
+kubectl --context ${CLUSTER1} apply -f - <<EOF
+apiVersion: networking.gloo.solo.io/v2
+kind: ExternalService
+metadata:
+  name: okta-jwks
+  namespace: httpbin
+  labels:
+    expose: "true"
+spec:
+  hosts:
+  - dev-22653158.okta.com
+  ports:
+  - name: https
+    number: 443
+    protocol: HTTPS
+    clientsideTls: {}
+  selector:
+    host: okta-jwks
+EOF
+```
+
+Now, we can create a `JWTPolicy` to extract the claim.
+
+Create the policy:
+
+```bash
+kubectl --context ${CLUSTER1} apply -f - <<EOF
+apiVersion: security.policy.gloo.solo.io/v2
+kind: JWTPolicy
+metadata:
+  name: httpbin
+  namespace: httpbin
+spec:
+  applyToRoutes:
+  - route:
+      labels:
+        oauth: "true"
+  config:
+    phase:
+      postAuthz:
+        priority: 1
+    providers:
+      okta:
+        issuer: https://dev-22653158.okta.com/oauth2/default
+        #audiences:
+        #- "api://default"
+        tokenSource:
+          headers:
+          - name: jwt
+        remote:
+          # url grabbed from https://dev-22653158.okta.com/oauth2/default/.well-known/oauth-authorization-server
+          url: "https://dev-22653158.okta.com/oauth2/default/v1/keys/"
+          destinationRef:
+            ref:
+              name: okta-jwks
+              namespace: httpbin
+              cluster: mgmt
+            kind: EXTERNAL_SERVICE
+            port: 
+              number: 443
+          enableAsyncFetch: true
+        claimsToHeaders:
+        - claim: email
+          header: X-Email
+EOF
+```
+
+You can see that it will be applied to our existing route and also that we want to execute it after performing the external authentication (to have access to the JWT token).
+
+If you refresh the web page, you should see a new `X-Email` header added to the request with the value from Okta
+
+### cleanup labs 18-20
 First let's apply the original `RouteTable` yaml:
 ```bash
 kubectl --context ${MGMT} apply -f - <<EOF
@@ -2484,11 +2580,18 @@ Refresh the web page. `@gmail.com` shouldn't be allowed to access it anymore sin
 
 Lets clean up the OAuth policies we've created:
 ```
+# extauth config
 kubectl --context ${MGMT} -n httpbin delete ExtAuthPolicy httpbin
 kubectl --context ${MGMT} -n httpbin delete secret httpbin-okta-client-secret
 kubectl --context ${MGMT} -n gloo-mesh delete ExtAuthServer mgmt-ext-auth-server
 
+# opa config
 kubectl --context ${MGMT} -n httpbin delete configmap allow-get-only
 kubectl --context ${MGMT} -n httpbin delete configmap allow-put-only
 kubectl --context ${MGMT} -n httpbin delete configmap allow-solo-email-users
+
+# jwtpolicy
+kubectl --context ${MGMT} -n httpbin delete externalendpoint okta-jwks
+kubectl --context ${MGMT} -n httpbin delete externalservice okta-jwks
+kubectl --context ${MGMT} -n httpbin delete jwtpolicy httpbin
 ```
