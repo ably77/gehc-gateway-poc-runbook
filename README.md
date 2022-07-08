@@ -2316,7 +2316,7 @@ Now you should be able to access the app logging in with users that end in `@gma
 
 ### Use OPA to enforce a specific HTTP method
 Let's continue to expand on our example by enforcing different HTTP methods for our two types of users
-```
+```bash
 kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: v1
 kind: ConfigMap
@@ -2560,9 +2560,7 @@ kubectl --context ${MGMT} -n httpbin delete secret httpbin-okta-client-secret
 kubectl --context ${MGMT} -n httpbin delete ExtAuthServer mgmt-ext-auth-server
 
 # opa config
-kubectl --context ${MGMT} -n httpbin delete configmap allow-get
-kubectl --context ${MGMT} -n httpbin delete configmap allow-put
-kubectl --context ${MGMT} -n httpbin delete configmap allow-solo-email-users
+kubectl --context ${MGMT} -n httpbin delete configmap allow-email-suffix
 
 # jwtpolicy
 kubectl --context ${MGMT} -n httpbin delete externalendpoint okta-jwks
