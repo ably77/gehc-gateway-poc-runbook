@@ -2463,7 +2463,9 @@ metadata:
   labels:
     host: okta-jwks
 spec:
-  #address: dev-22653158.okta.com/oauth2/default/v1/keys/
+  # This external endpoint identifies the host where Okta publishes the JWKS endpoint for my dev account
+  # See https://dev-22653158-admin.okta.com/oauth2/default/.well-known/oauth-authorization-server
+  # You will notice the endpoint jwks_uri":"https://dev-22653158.okta.com/oauth2/default/v1/keys"
   address: dev-22653158.okta.com
   ports:
   - name: https
@@ -2482,7 +2484,7 @@ metadata:
     expose: "true"
 spec:
   hosts:
-  - dev-22653158.okta.com
+  - okta-jwks.external
   ports:
   - name: https
     number: 443
