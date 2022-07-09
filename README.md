@@ -2452,7 +2452,7 @@ In this step, we're going to validate the JWT token and to create a new header f
 
 Okta is running outside of the Service Mesh, so we need to define an `ExternalService` and its associated `ExternalEndpoint`. 
 
-Let's start by deploying the latter:
+The external endpoint represents the server or service outside of your service mesh that you want to reach. By using a Gloo Mesh external service, you can then assign a unique hostname to this external endpoint that services in your mesh can use to send requests. You can also use this service to route incoming requests from your ingress gateway directly to your external endpoint.
 ```bash
 kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: networking.gloo.solo.io/v2
@@ -2463,9 +2463,8 @@ metadata:
   labels:
     host: okta-jwks
 spec:
-  # This external endpoint identifies the host where Okta publishes the JWKS endpoint for my dev account
+  # This external endpoint identifies the host where Okta publishes the jwks_uri endpoint for my dev account
   # See https://dev-22653158-admin.okta.com/oauth2/default/.well-known/oauth-authorization-server
-  # You will notice the endpoint jwks_uri":"https://dev-22653158.okta.com/oauth2/default/v1/keys"
   address: dev-22653158.okta.com
   ports:
   - name: https
@@ -2473,6 +2472,7 @@ spec:
 EOF
 ```
 
+Create an external service resource to expose the external endpoint inside your mesh. In this example, you select all endpoints with the external-endpoint: db label. Note that the hosts field is not required to match the address that you specified in the external endpoint, because this host is an internal address that is used only by the gateways and services within your service mesh.
 ```bash
 kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: networking.gloo.solo.io/v2
