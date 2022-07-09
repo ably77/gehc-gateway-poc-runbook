@@ -2141,7 +2141,6 @@ spec:
             afterLogoutUrl: /get
             headers:
               idTokenHeader: Jwt
-              accessTokenHeader: access-token
 EOF
 ```
 
@@ -2536,6 +2535,8 @@ spec:
         claimsToHeaders:
         - claim: email
           header: X-Email
+        - claim: groups
+          header: X-Groups
 EOF
 ```
 
