@@ -56,6 +56,8 @@ Gloo Mesh provides many unique features, including:
 - simplified cross cluster communications (using virtual destinations)
 - advanced gateway capabilities (oauth, jwt, transformations, rate limiting, web application firewall, ...)
 
+![Gloo Mesh Dashboard](images/runbook7a.png)
+
 ## Lab 0 - Prerequisites <a name="Lab-0"></a>
 
 ### HIGHLY RECOMMENDED: Read Before Starting the Labs Below:
