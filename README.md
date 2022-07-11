@@ -227,35 +227,35 @@ echo $ENDPOINT_HTTPS_GW_MGMT
 > 
 > ```
 > helm --kube-context=${MGMT} upgrade --install istio-eastwestgateway ./istio-1.13.4/manifests/charts/gateways/istio-ingress -n istio-gateways --values - <<EOF
-global:
-  hub: us-docker.pkg.dev/gloo-mesh/istio-workshops
-  tag: 1.13.4-solo
-gateways:
-  istio-ingressgateway:
-    name: istio-eastwestgateway
-    namespace: istio-gateways
-    labels:
-      istio: eastwestgateway
-      topology.istio.io/network: network1
-    injectionTemplate: gateway
-    type: LoadBalancer
-    ports:
-    - name: tcp-status-port
-      port: 15021
-      targetPort: 15021
-    - name: tls
-      port: 15443
-      targetPort: 15443
-    - name: tcp-istiod
-      port: 15012
-      targetPort: 15012
-    - name: tcp-webhook
-      port: 15017
-      targetPort: 15017
-    env:
-      ISTIO_META_ROUTER_MODE: "sni-dnat"
-      ISTIO_META_REQUESTED_NETWORK_VIEW: "network1"
-EOF
+> global:
+>   hub: us-docker.pkg.dev/gloo-mesh/istio-workshops
+>   tag: 1.13.4-solo
+> gateways:
+>   istio-ingressgateway:
+>     name: istio-eastwestgateway
+>     namespace: istio-gateways
+>     labels:
+>       istio: eastwestgateway
+>       topology.istio.io/network: network1
+>     injectionTemplate: gateway
+>     type: LoadBalancer
+>     ports:
+>     - name: tcp-status-port
+>       port: 15021
+>       targetPort: 15021
+>     - name: tls
+>       port: 15443
+>       targetPort: 15443
+>     - name: tcp-istiod
+>       port: 15012
+>       targetPort: 15012
+>     - name: tcp-webhook
+>       port: 15017
+>       targetPort: 15017
+>     env:
+>       ISTIO_META_ROUTER_MODE: "sni-dnat"
+>       ISTIO_META_REQUESTED_NETWORK_VIEW: "network1"
+> EOF
 > ```
 
 ## Lab 3 - Deploy our bookinfo and httpbin demo apps <a name="Lab-3"></a>
