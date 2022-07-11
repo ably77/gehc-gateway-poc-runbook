@@ -1913,7 +1913,8 @@ EOF
 Then we can also delete the various policies we've created:
 ```
 # external service
-kubectl --context ${MGMT} -n httpbin delete externalservice httpbin
+kubectl --context ${MGMT} -n httpbin delete externalservice httpbin-org
+kubectl --context ${MGMT} -n httpbin delete externalservice httpbin-not-in-mesh
 
 # rate limiting
 kubectl --context ${MGMT} -n httpbin delete ratelimitpolicy httpbin
