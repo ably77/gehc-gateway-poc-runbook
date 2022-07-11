@@ -628,7 +628,7 @@ helm upgrade --install gloo-mesh-agent-addons gloo-mesh-agent/gloo-mesh-agent \
 ```
 
 This is how the environment looks like now:
-![Gloo Mesh Workshop Environment](images/runbook1.png)
+![Gloo Mesh Workshop Environment](images/runbook1a.png)
 
 ## Lab 5 - Create Gloo Mesh Workspaces <a name="Lab-5"></a>
 The platform team needs to create the corresponding `Workspace` Kubernetes objects in the Gloo Mesh management cluster.
@@ -840,7 +840,7 @@ The Httpbin team has decided to export the following to the `gateway` workspace 
 
 This is how to environment looks like with the workspaces:
 
-![Gloo Mesh Workspaces](images/steps/create-bookinfo-workspace/gloo-mesh-workspaces.svg)
+![Gloo Mesh Workspaces](images/runbook2a.png)
 
 
 ## Lab 6 - Expose the productpage through a gateway <a name="Lab-6"></a>
@@ -1018,7 +1018,7 @@ echo "https://${ENDPOINT_HTTPS_GW_MGMT}/productpage"
 
 This diagram shows the flow of the request (through the Istio Ingress Gateway):
 
-![Gloo Mesh Gateway](images/steps/gateway-expose/gloo-mesh-gateway.svg)
+![Gloo Mesh Gateway](images/runbook3a.png)
 
 ## Lab 7 - Canary deployment with traffic shifting <a name="Lab-7"></a>
 
@@ -1299,7 +1299,7 @@ If you refresh the page several times, you'll see an error message telling that 
 
 This diagram shows where the timeout and delay have been applied:
 
-![Gloo Mesh Traffic Policies](images/steps/traffic-policies/gloo-mesh-traffic-policies.svg)
+![Gloo Mesh Traffic Policies](images/runbook4a.png)
 
 Let's delete the Gloo Mesh objects we've created:
 
@@ -1385,6 +1385,9 @@ echo "https://${ENDPOINT_HTTPS_GW_MGMT}/get"
 ```
 
 Note that when the response comes from the external service (httpbin.org), there's a `X-Amzn-Trace-Id` header.
+
+This diagram shows our new flow
+![Gloo Mesh External Service](images/runbook5a.png)
 
 ### Exposing a service external to the mesh, but in-cluster
 Similar to the exercise above, we can also expose services that are external to the mesh but in-cluster with the same workflow using `ExternalService` and modifying our `RouteTable`
@@ -1516,6 +1519,9 @@ If you refresh your browser, you should see that you get a response either from 
 - When the response comes from the external service `not-in-mesh`, there is no longer an `X-Amzn-Trace-Id` header. And when the response comes from the local service, there's a `X-B3-Spanid` header.
 - When the response comes from the external service `in-mesh`, there is an additional `X-Forwarded-Client-Cert` that contains the SPIFFE ID which is used to validate mTLS
 
+This diagram shows our current setup with weighted routing
+![Gloo Mesh External Service](images/runbook6a.png)
+
 ### Canary to in-mesh service
 Finally, you can update the `RouteTable` to direct all the traffic to the local `httpbin` service:
 
@@ -1554,10 +1560,6 @@ EOF
 ```
 
 If you refresh your browser, you should see that you get responses only from the local service `in-mesh`.
-
-This diagram shows the flow of the requests :
-
-![Gloo Mesh Gateway External Service](images/steps/gateway-external-service/gloo-mesh-gateway-external-service.svg)
 
 ## Lab 10 - Implement Rate Limiting policy on httpbin <a name="Lab-10"></a>
 In this lab, lets explore adding rate limiting to our httpbin route
@@ -1940,7 +1942,7 @@ kubectl port-forward -n gloo-mesh svc/gloo-mesh-ui 8090 --context ${MGMT}
 
 The UI is available at http://localhost:8090
 
-![Gloo Mesh Dashboard](images/gm-dashboard.png)
+![Gloo Mesh Dashboard](images/runbook7a.png)
 
 ## Lab 14 - Exposing the Gloo Mesh UI <a name="Lab-14"></a>
 To expose the Gloo Mesh UI using our Ingress Gateway instead of port-forwarding, first we will add the Gloo Mesh UI pod into the mesh
@@ -2187,6 +2189,8 @@ To access the Gloo Mesh UI protected by OIDC we must properly configure DNS to m
 ```
 
 Once configured, you should be able to access the Gloo Mesh UI at https://gmui.glootest.com and it should be now be protected by OIDC.
+
+![Gloo Mesh Dashboard OIDC](images/runbook8a.png)
 
 ## Lab 16 - Securing Application access with OAuth <a name="Lab-16"></a>
 In this step, we're going to secure the access to the `httpbin` service using OAuth. This example will use an Okta Developer Account workflow as an example, but should be compatible with the OIDC provider used in Lab 17 above
