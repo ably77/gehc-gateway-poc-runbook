@@ -2309,6 +2309,8 @@ spec:
     - name: httpbin
       labels:
         oauth: "true"
+        waf: "true"
+        ratelimited: "true"
       matchers:
       - uri:
           exact: /get
