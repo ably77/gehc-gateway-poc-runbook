@@ -56,8 +56,6 @@ Gloo Mesh provides many unique features, including:
 - simplified cross cluster communications (using virtual destinations)
 - advanced gateway capabilities (oauth, jwt, transformations, rate limiting, web application firewall, ...)
 
-![Gloo Mesh graph](images/gloo-mesh-graph.png)
-
 ## Lab 0 - Prerequisites <a name="Lab-0"></a>
 
 ### HIGHLY RECOMMENDED: Read Before Starting the Labs Below:
@@ -629,8 +627,8 @@ helm upgrade --install gloo-mesh-agent-addons gloo-mesh-agent/gloo-mesh-agent \
   --version 2.0.8
 ```
 
-This is how to environment looks like now:
-![Gloo Mesh Workshop Environment](images/steps/deploy-and-register-gloo-mesh/gloo-mesh-workshop-environment.svg)
+This is how the environment looks like now:
+![Gloo Mesh Workshop Environment](images/runbook1.png)
 
 ## Lab 5 - Create Gloo Mesh Workspaces <a name="Lab-5"></a>
 The platform team needs to create the corresponding `Workspace` Kubernetes objects in the Gloo Mesh management cluster.
