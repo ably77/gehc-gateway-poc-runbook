@@ -17,21 +17,21 @@ source ./scripts/assert.sh
 * [Lab 2 - Deploy Istio](#Lab-2)
 * [Lab 3 - Deploy our bookinfo and httpbin demo apps](#Lab-3)
 * [Lab 4 - Deploy and register Gloo Mesh](#Lab-4)
-* [Lab 6 - Create Gloo Mesh Workspaces](#Lab-6)
-* [Lab 7 - Expose the productpage through a gateway](#Lab-7)
-* [Lab 8 - Canary deployment with traffic shifting](#Lab-8)
-* [Lab 9 - Traffic policies](#Lab-9)
-* [Lab 10 - Expose an external service](#Lab-10)
-* [Lab 11 - Implement Rate Limiting policy on httpbin](#Lab-11)
-* [Lab 12 - Use the Transformation filter](#Lab-12)
-* [Lab 13 - Use the Web Application Firewall filter](#Lab-13)
-* [Lab 14 - Exploring the Gloo Mesh Enterprise UI](#Lab-14)
-* [Lab 15 - Exposing the Gloo Mesh UI](#Lab-15)
-* [Lab 16 - Integrate Gloo Mesh UI with OIDC](#Lab-16)
-* [Lab 17 - Securing Application access with OAuth](#Lab-17)
-* [Lab 18 - Integrating with OPA](#Lab-18)
-* [Lab 19 - Use the JWT filter to create headers from claims](#Lab-19)
-* [Lab 20 - Use the transformation filter to manipulate headers](#Lab-20)
+* [Lab 5 - Create Gloo Mesh Workspaces](#Lab-5)
+* [Lab 6 - Expose the productpage through a gateway](#Lab-6)
+* [Lab 7 - Canary deployment with traffic shifting](#Lab-7)
+* [Lab 8 - Traffic policies](#Lab-8)
+* [Lab 9 - Expose an external service](#Lab-9)
+* [Lab 10 - Implement Rate Limiting policy on httpbin](#Lab-10)
+* [Lab 11 - Use the Transformation filter](#Lab-11)
+* [Lab 12 - Use the Web Application Firewall filter](#Lab-12)
+* [Lab 13 - Exploring the Gloo Mesh Enterprise UI](#Lab-13)
+* [Lab 14 - Exposing the Gloo Mesh UI](#Lab-14)
+* [Lab 15 - Integrate Gloo Mesh UI with OIDC](#Lab-15)
+* [Lab 16 - Securing Application access with OAuth](#Lab-16)
+* [Lab 17 - Integrating with OPA](#Lab-17)
+* [Lab 18 - Use the JWT filter to create headers from claims](#Lab-18)
+* [Lab 19 - Use the transformation filter to manipulate headers](#Lab-19)
 
 ## Introduction to Gloo Mesh <a name="introduction"></a>
 [Gloo Mesh Enterprise](https://www.solo.io/products/gloo-mesh/) is a management plane which makes it easy to operate [Istio](https://istio.io) on one or many Kubernetes clusters deployed anywhere (any platform, anywhere).
@@ -593,7 +593,7 @@ helm upgrade --install gloo-mesh-agent-addons gloo-mesh-agent/gloo-mesh-agent \
 This is how to environment looks like now:
 ![Gloo Mesh Workshop Environment](images/steps/deploy-and-register-gloo-mesh/gloo-mesh-workshop-environment.svg)
 
-## Lab 6 - Create Gloo Mesh Workspaces <a name="Lab-6"></a>
+## Lab 5 - Create Gloo Mesh Workspaces <a name="Lab-5"></a>
 The platform team needs to create the corresponding `Workspace` Kubernetes objects in the Gloo Mesh management cluster.
 
 ### Create the admin Workspace
@@ -806,7 +806,7 @@ This is how to environment looks like with the workspaces:
 ![Gloo Mesh Workspaces](images/steps/create-bookinfo-workspace/gloo-mesh-workspaces.svg)
 
 
-## Lab 7 - Expose the productpage through a gateway <a name="Lab-8a"></a>
+## Lab 6 - Expose the productpage through a gateway <a name="Lab-6"></a>
 
 In this step, we're going to expose the `productpage` service through the Ingress Gateway using Gloo Mesh.
 
@@ -983,7 +983,7 @@ This diagram shows the flow of the request (through the Istio Ingress Gateway):
 
 ![Gloo Mesh Gateway](images/steps/gateway-expose/gloo-mesh-gateway.svg)
 
-## Lab 8 - Canary deployment with traffic shifting <a name="Lab-8"></a>
+## Lab 7 - Canary deployment with traffic shifting <a name="Lab-7"></a>
 
 Let's explore weighted destinations and how we can use them to demonstrate basic functionality of canary deployments. Leveraging weighted destinations, we can start to build up foundations of progressive delivery techniques
 
@@ -1136,7 +1136,7 @@ Let's delete the `RouteTable` we've created to move forward with the next labs:
 kubectl --context ${MGMT} -n bookinfo-backends delete routetable reviews
 ```
 
-## Lab 9 - Traffic policies <a name="Lab-9"></a>
+## Lab 8 - Traffic policies <a name="Lab-8"></a>
 
 We're going to use Gloo Mesh policies to inject faults and configure timeouts.
 
@@ -1274,7 +1274,7 @@ kubectl --context ${MGMT} -n bookinfo-backends delete routetable reviews
 kubectl --context ${MGMT} -n bookinfo-frontends delete routetable productpage
 ```
 
-## Lab 10 - Expose an external service <a name="Lab-10"></a>
+## Lab 9 - Expose an external service <a name="Lab-9"></a>
 
 In this step, we're going to expose an external service through a Gateway using Gloo Mesh and show how we can then migrate this service to the Mesh.
 
@@ -1439,7 +1439,7 @@ This diagram shows the flow of the requests :
 
 ![Gloo Mesh Gateway EXternal Service](images/steps/gateway-external-service/gloo-mesh-gateway-external-service.svg)
 
-## Lab 11 - Implement Rate Limiting policy on httpbin <a name="Lab-11"></a>
+## Lab 10 - Implement Rate Limiting policy on httpbin <a name="Lab-10"></a>
 In this lab, lets explore adding rate limiting to our httpbin route
 
 In this step, we're going to apply rate limiting to the Gateway to only allow 5 requests per minute
@@ -1590,7 +1590,7 @@ EOF
 
 Refresh the web page multiple times. You should see a 429 error after 5 refreshes
 
-## Lab 12 - Use the Transformation filter <a name="Lab-12"></a>
+## Lab 11 - Use the Transformation filter <a name="Lab-11"></a>
 
 ### manipulate :status pseudo-header when rate limited
 Lets try a simple use case leveraging the transformation filter output when rate limited. For our first case, lets say our application expects a `529` header instead of the default `429` header returned when rate limited by Envoy. We can let the transformation filter handle that!
@@ -1654,7 +1654,7 @@ Too many Requests!
 Try again after a minute
 ```
 
-## Lab 13 - Use the Web Application Firewall filter <a name="Lab-13"></a>
+## Lab 12 - Use the Web Application Firewall filter <a name="Lab-12"></a>
 A web application firewall (WAF) protects web applications by monitoring, filtering, and blocking potentially harmful traffic and attacks that can overtake or exploit them.
 
 Gloo Mesh includes the ability to enable the ModSecurity Web Application Firewall for any incoming and outgoing HTTP connections. 
@@ -1806,7 +1806,7 @@ kubectl --context ${MGMT} -n httpbin delete transformationpolicy ratelimit-trans
 kubectl --context ${MGMT} -n httpbin delete wafpolicies.security.policy.gloo.solo.io log4shell
 ```
 
-## Lab 14 - Exploring the Gloo Mesh Enterprise UI <a name="Lab-14"></a>
+## Lab 13 - Exploring the Gloo Mesh Enterprise UI <a name="Lab-13"></a>
 
 Gloo Mesh provides a powerful dashboard to view your multi-cluster Istio environment.
 
@@ -1821,7 +1821,7 @@ The UI is available at http://localhost:8090
 
 ![Gloo Mesh Dashboard](images/gm-dashboard.png)
 
-## Lab 15 - Exposing the Gloo Mesh UI <a name="Lab-15"></a>
+## Lab 14 - Exposing the Gloo Mesh UI <a name="Lab-14"></a>
 To expose the Gloo Mesh UI using our Ingress Gateway instead of port-forwarding, first we will add the Gloo Mesh UI pod into the mesh
 
 ### Update Gloo Mesh Helm 
@@ -1998,7 +1998,7 @@ Now you should be able to access the Gloo Mesh UI on port 443
 echo "https://${ENDPOINT_HTTPS_GW_MGMT}"
 ```
 
-## Lab 16 - Integrate Gloo Mesh UI with OIDC <a name="Lab-16"></a>
+## Lab 15 - Integrate Gloo Mesh UI with OIDC <a name="Lab-15"></a>
 Now that we have our Gloo Mesh UI exposed, we can integrate it with our OIDC. The Gloo Mesh API server has its own external auth service built in. This way, you can manage external auth for the Gloo Mesh UI separately from the external auth that you set up for your application networking policies.
 
 The `gloo-mesh-enterprise` helm chart lets us define the OIDC values inline. The values OIDC values are described below:
@@ -2067,7 +2067,7 @@ To access the Gloo Mesh UI protected by OIDC we must properly configure DNS to m
 
 Once configured, you should be able to access the Gloo Mesh UI at https://gmui.glootest.com and it should be now be protected by OIDC.
 
-## Lab 17 - Securing Application access with OAuth <a name="Lab-17"></a>
+## Lab 16 - Securing Application access with OAuth <a name="Lab-16"></a>
 In this step, we're going to secure the access to the `httpbin` service using OAuth. This example will use an Okta Developer Account workflow as an example, but should be compatible with the OIDC provider used in Lab 17 above
 
 First, we need to create a Kubernetes Secret that contains the OIDC client-secret. Please provide this value input before running the command below:
@@ -2214,7 +2214,7 @@ To access the httpbin app protected by OIDC we must properly configure DNS to ma
 
 Now when you access your httpbin app through the browser, it will be protected by the OIDC provider login page
 
-## Lab 18 - Integrating with OPA <a name="Lab-18"></a>
+## Lab 17 - Integrating with OPA <a name="Lab-17"></a>
 
 You can also perform authorization using OPA. 
 
@@ -2444,7 +2444,7 @@ If you refresh the browser where the `@solo.io` user is logged in, we should be 
 
 If you refresh the browser where the `@gmail.com` user is logged in, we should now see a `403 Error - You don't have authorization to view this page` if you access anything other than the `/anything/protected` endpoint
 
-## Lab 19 - Use the JWT filter to create headers from claims <a name="Lab-19"></a>
+## Lab 18 - Use the JWT filter to create headers from claims <a name="Lab-18"></a>
 In this step, we're going to validate the JWT token and to create a new header from the `email` claim.
 
 Okta is running outside of the Service Mesh, so we need to define an `ExternalService` and its associated `ExternalEndpoint`. 
@@ -2542,7 +2542,7 @@ You can see that it will be applied to our existing route and also that we want 
 
 If you refresh the web page, you should see a new `X-Email` header added to the request with the value from Okta
 
-## Lab 20 - Use the transformation filter to manipulate headers <a name="Lab-20"></a>
+## Lab 19 - Use the transformation filter to manipulate headers <a name="Lab-19"></a>
 Let's explore using the transformation filter again, this time we're going to use a regular expression to extract a part of an existing header and to create a new one:
 
 Let's create a `TransformationPolicy` to extract the claim.
