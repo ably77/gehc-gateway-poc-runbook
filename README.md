@@ -567,12 +567,15 @@ In your browser, connect to http://localhost:9091/metrics
 
 In the metrics UI, look for the following lines. If the values are 1, the agents in the workload clusters are successfully registered with the management server. If the values are 0, the agents are not successfully connected.
 ```
-relay_pull_clients_connected{cluster="cluster1"} 1
-relay_pull_clients_connected{cluster="cluster2"} 1
+# HELP relay_pull_clients_connected Current number of connected Relay pull clients (Relay Agents).
+# TYPE relay_pull_clients_connected gauge
+relay_pull_clients_connected{cluster="mgmt"} 1
 # HELP relay_push_clients_connected Current number of connected Relay push clients (Relay Agents).
 # TYPE relay_push_clients_connected gauge
-relay_push_clients_connected{cluster="cluster1"} 1
-relay_push_clients_connected{cluster="cluster2"} 1
+relay_push_clients_connected{cluster="mgmt"} 1
+# HELP relay_push_clients_warmed Current number of warmed Relay push clients (Relay Agents).
+# TYPE relay_push_clients_warmed gauge
+relay_push_clients_warmed{cluster="mgmt"} 1
 ```
 
 Method #2: With Ephemeral Containers feature-flag enabled:
@@ -586,8 +589,7 @@ You should get an output similar to this:
 ```
 # HELP relay_push_clients_connected Current number of connected Relay push clients (Relay Agents).
 # TYPE relay_push_clients_connected gauge
-relay_push_clients_connected{cluster="cluster1"} 1
-relay_push_clients_connected{cluster="cluster2"} 1
+relay_push_clients_connected{cluster="mgmt"} 1
 ```
 
 Method #3: Visualize in the UI
