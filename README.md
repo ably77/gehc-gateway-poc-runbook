@@ -1457,7 +1457,7 @@ echo "https://${ENDPOINT_HTTPS_GW_MGMT}/get"
 Note that when the response comes from the external service `not-in-mesh`, there is no longer an `X-Amzn-Trace-Id` header. And when the response comes from the local service, there's a `X-B3-Spanid` header.
 
 
-### Canary to in-mesh service
+### Apply Weighted Destinations to Validate Behavior
 Let's update the `RouteTable` to direct
 -  30% of the traffic to the external httpbin service at httpbin.org
 -  40% of the traffic to the local `not-in-mesh` httpbin service
@@ -1518,7 +1518,7 @@ If you refresh your browser, you should see that you get a response either from 
 - When the response comes from the external service `not-in-mesh`, there is no longer an `X-Amzn-Trace-Id` header. And when the response comes from the local service, there's a `X-B3-Spanid` header.
 - When the response comes from the external service `in-mesh`, there is an additional `X-Forwarded-Client-Cert` that contains the SPIFFE ID which is used to validate mTLS
 
-
+### Canary to in-mesh service
 Finally, you can update the `RouteTable` to direct all the traffic to the local `httpbin` service:
 
 ```bash
