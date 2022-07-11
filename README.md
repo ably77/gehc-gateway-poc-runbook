@@ -1315,16 +1315,16 @@ kubectl --context ${MGMT} -n bookinfo-frontends delete routetable productpage
 
 ## Lab 9 - Expose an external service <a name="Lab-9"></a>
 
-In this step, we're going to expose an external service through a Gateway using Gloo Mesh and show how we can then migrate this service to the Mesh.
+In this step, we're going to expose an external service through a Gateway using Gloo Mesh. Our use cases will apply for both External Services that are external to the cluster (i.e. an external database server or Public Cloud Service) as well as in-cluster but not in the mesh. Then we will show techniques on how we can then incrementally migrate this service to the Mesh.
 
+### Exposing a service external to the mesh and external to the cluster
 Let's create an `ExternalService` corresponding to `httpbin.org`:
-
 ```bash
 kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: networking.gloo.solo.io/v2
 kind: ExternalService
 metadata:
-  name: httpbin
+  name: httpbin-org
   namespace: httpbin
   labels:
     expose: "true"
@@ -1374,7 +1374,7 @@ spec:
           port:
             number: 443
           ref:
-            name: httpbin
+            name: httpbin-org
             namespace: httpbin
 EOF
 ```
@@ -1386,7 +1386,82 @@ Get the URL to access the `httpbin` service using the following command:
 echo "https://${ENDPOINT_HTTPS_GW_MGMT}/get"
 ```
 
-Let's update the `RouteTable` to direct 50% of the traffic to the local `httpbin` service:
+Note that when the response comes from the external service (httpbin.org), there's a `X-Amzn-Trace-Id` header.
+
+### Exposing a service external to the mesh, but in-cluster
+Similar to the exercise above, we can also expose services that are external to the mesh but in-cluster with the same workflow using `ExternalService` and modifying our `RouteTable`
+
+Let's give this a go for our httpbin service `not-in-mesh`. Notice that in this case I am using the fqdn of our local `not-in-mesh` service that is in-cluster for the `ExternalService`
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: networking.gloo.solo.io/v2
+kind: ExternalService
+metadata:
+  name: httpbin-not-in-mesh
+  namespace: httpbin
+  labels:
+    expose: "true"
+spec:
+  hosts:
+  - not-in-mesh.httpbin.svc.cluster.local
+  ports:
+  - name: https
+    number: 8000
+    protocol: HTTPS
+EOF
+```
+
+Now we can route to our `httpbin-not-in-mesh` external service by modifying our route table
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: networking.gloo.solo.io/v2
+kind: RouteTable
+metadata:
+  name: httpbin
+  namespace: httpbin
+  labels:
+    expose: "true"
+spec:
+  hosts:
+    - '*'
+  virtualGateways:
+    - name: north-south-gw-443
+      namespace: istio-gateways
+      cluster: mgmt
+  workloadSelectors: []
+  http:
+    - name: httpbin
+      matchers:
+      - uri:
+          exact: /get
+      - uri:
+          prefix: /anything
+      forwardTo:
+        destinations:
+        - kind: EXTERNAL_SERVICE
+          port:
+            number: 8000
+          ref:
+            name: httpbin-not-in-mesh
+            namespace: httpbin
+EOF
+```
+
+You should now be able to access the `not-in-mesh` external service through the gateway.
+
+Get the URL to access the `httpbin` service using the following command:
+```
+echo "https://${ENDPOINT_HTTPS_GW_MGMT}/get"
+```
+
+Note that when the response comes from the external service `not-in-mesh`, there is no longer an `X-Amzn-Trace-Id` header. And when the response comes from the local service, there's a `X-B3-Spanid` header.
+
+
+### Canary to in-mesh service
+Let's update the `RouteTable` to direct
+-  30% of the traffic to the external httpbin service at httpbin.org
+-  40% of the traffic to the local `not-in-mesh` httpbin service
+-  30% of the traffic to the local `in-mesh` httpbin service
 
 ```bash
 kubectl --context ${MGMT} apply -f - <<EOF
@@ -1418,23 +1493,31 @@ spec:
           port:
             number: 443
           ref:
-            name: httpbin
+            name: httpbin-org
             namespace: httpbin
-          weight: 50
+          weight: 30
+        - kind: EXTERNAL_SERVICE
+          port:
+            number: 8000
+          ref:
+            name: httpbin-not-in-mesh
+            namespace: httpbin
+          weight: 40
         - ref:
             name: in-mesh
             namespace: httpbin
           port:
             number: 8000
-          weight: 50
+          weight: 30
 EOF
 ```
 
-If you refresh your browser, you should see that you get a response either from the local service or from the external service.
+If you refresh your browser, you should see that you get a response either from the local services `in-mesh` or `not-in-mesh` or from the external service at httpbin.org. You can validate the behavior below:
 
-When the response comes from the external service (httpbin.org), there's a `X-Amzn-Trace-Id` header.
+- When the response comes from the external service `httpbin-org`, there a `X-Amzn-Trace-Id` header
+- When the response comes from the external service `not-in-mesh`, there is no longer an `X-Amzn-Trace-Id` header. And when the response comes from the local service, there's a `X-B3-Spanid` header.
+- When the response comes from the external service `in-mesh`, there is an additional `X-Forwarded-Client-Cert` that contains the SPIFFE ID which is used to validate mTLS
 
-And when the response comes from the local service, there's a `X-B3-Parentspanid` header.
 
 Finally, you can update the `RouteTable` to direct all the traffic to the local `httpbin` service:
 
@@ -1472,11 +1555,11 @@ spec:
 EOF
 ```
 
-If you refresh your browser, you should see that you get responses only from the local service.
+If you refresh your browser, you should see that you get responses only from the local service `in-mesh`.
 
 This diagram shows the flow of the requests :
 
-![Gloo Mesh Gateway EXternal Service](images/steps/gateway-external-service/gloo-mesh-gateway-external-service.svg)
+![Gloo Mesh Gateway External Service](images/steps/gateway-external-service/gloo-mesh-gateway-external-service.svg)
 
 ## Lab 10 - Implement Rate Limiting policy on httpbin <a name="Lab-10"></a>
 In this lab, lets explore adding rate limiting to our httpbin route
