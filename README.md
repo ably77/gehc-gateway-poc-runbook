@@ -1653,7 +1653,7 @@ spec:
     ratelimitServerConfig:
       cluster: mgmt
       name: httpbin
-      namespace: httpbin
+      namespace: gloo-mesh-addons
     serverSettings:
       cluster: mgmt
       name: rate-limit-server
@@ -2014,6 +2014,32 @@ gloo-mesh-ui-54c67b5bc6-bwv5n            4/4     Running   1 (56m ago)   56m
 ```
 
 ### Create our Virtual Destination and Route Table
+
+First we can create our VirtualDestination
+```bash
+kubectl apply --context ${MGMT} -f- <<EOF
+apiVersion: networking.gloo.solo.io/v2
+kind: VirtualDestination
+metadata:
+  labels:
+    expose: "true"
+  name: gm-ui-vd
+  namespace: gloo-mesh
+spec:
+  hosts:
+  - gm-ui.mgmt.global
+  ports:
+  - number: 8090
+    protocol: HTTP
+  services:
+  - cluster: mgmt
+    labels:
+      app: gloo-mesh-ui
+    namespace: gloo-mesh
+EOF
+```
+
+Next we can deploy the route table mapping to this virtual destination
 ```bash
 kubectl apply --context ${MGMT} -f- <<EOF
 apiVersion: networking.gloo.solo.io/v2
@@ -2055,25 +2081,6 @@ spec:
     name: north-south-gw-80
     namespace: istio-gateways
   workloadSelectors: []
----
-apiVersion: networking.gloo.solo.io/v2
-kind: VirtualDestination
-metadata:
-  labels:
-    expose: "true"
-  name: gm-ui-vd
-  namespace: gloo-mesh
-spec:
-  hosts:
-  - gm-ui.mgmt.global
-  ports:
-  - number: 8090
-    protocol: HTTP
-  services:
-  - cluster: mgmt
-    labels:
-      app: gloo-mesh-ui
-    namespace: gloo-mesh
 EOF
 ```
 
@@ -2194,9 +2201,16 @@ helm --kube-context ${MGMT} upgrade --install gloo-mesh-enterprise gloo-mesh-ent
 ```
 
 To access the Gloo Mesh UI protected by OIDC we must properly configure DNS to map to the `<app_url>` defined above to our gateway IP (i.e. https://gmui.glootest.com). One method is to modify your `/etc/hosts` file locally
+
+Echo your gateway IP variable we saved earlier:
+```bash
+echo $HOST_GW_MGMT
 ```
+
+Then modify your /etc/hosts to add this entry mapped to your gateway IP
+```bash
 # mgmt
-<GATEWAY_IP> gmui.glootest.com
+$HOST_GW_MGMT gmui.glootest.com
 ```
 
 Once configured, you should be able to access the Gloo Mesh UI at https://gmui.glootest.com and it should be now be protected by OIDC.
