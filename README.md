@@ -37,6 +37,8 @@ source ./scripts/assert.sh
 ## Introduction to Gloo Mesh <a name="introduction"></a>
 [Gloo Mesh Enterprise](https://www.solo.io/products/gloo-mesh/) is a management plane which makes it easy to operate [Istio](https://istio.io) on one or many Kubernetes clusters deployed anywhere (any platform, anywhere).
 
+![Gloo Mesh Dashboard](images/runbook7a.png)
+
 ### Istio support
 The Gloo Mesh Enterprise subscription includes end to end Istio support:
 - Upstream first
@@ -62,8 +64,6 @@ Gloo Mesh Gateway is an abstraction built on Istio's ingress gateway model, whic
 ### High Level Diagram
 A high level diagram of the base components in our single Kubernetes cluster is shown below. We will expand on this diagram as we move along with the labs
 ![Gloo Mesh Workshop Environment](images/runbook1a.png)
-
-![Gloo Mesh Dashboard](images/runbook7a.png)
 
 ## Lab 0 - Prerequisites <a name="Lab-0"></a>
 
