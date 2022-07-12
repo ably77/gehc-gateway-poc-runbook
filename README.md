@@ -439,7 +439,7 @@ not-in-mesh-5c64bb49cd-m9kwm   1/1     Running   0          11s
 ### Install the meshctl CLI
 First of all, let's install the `meshctl` CLI which will provide us some added functionality for interacting with Gloo Mesh
 ```bash
-export GLOO_MESH_VERSION=v2.0.8
+export GLOO_MESH_VERSION=v2.0.9
 curl -sL https://run.solo.io/meshctl/install | sh -
 export PATH=$HOME/.gloo-mesh/bin:$PATH
 ```
@@ -452,7 +452,7 @@ helm repo update
 kubectl --context ${MGMT} create ns gloo-mesh 
 helm upgrade --install gloo-mesh-enterprise gloo-mesh-enterprise/gloo-mesh-enterprise \
 --namespace gloo-mesh --kube-context ${MGMT} \
---version=2.0.8 \
+--version=2.0.9 \
 --values - <<EOF
 licenseKey: "${GLOO_MESH_LICENSE_KEY}"
 mgmtClusterName: mgmt
@@ -558,7 +558,7 @@ helm upgrade --install gloo-mesh-agent gloo-mesh-agent/gloo-mesh-agent \
   --set rate-limiter.enabled=false \
   --set ext-auth-service.enabled=false \
   --set cluster=mgmt \
-  --version 2.0.8
+  --version 2.0.9
 ```
 
 Note that the registration can also be performed using `meshctl cluster register`.
@@ -635,7 +635,7 @@ helm upgrade --install gloo-mesh-agent-addons gloo-mesh-agent/gloo-mesh-agent \
   --set glooMeshAgent.enabled=false \
   --set rate-limiter.enabled=true \
   --set ext-auth-service.enabled=true \
-  --version 2.0.8
+  --version 2.0.9
 ```
 
 This is how the environment looks like now:
@@ -1608,7 +1608,7 @@ metadata:
   labels:
     workspace.solo.io/exported: "true"
   name: httpbin
-  namespace: httpbin
+  namespace: gloo-mesh-addons
 spec:
   destinationServers:
   - port:
@@ -1653,7 +1653,7 @@ spec:
     ratelimitServerConfig:
       cluster: mgmt
       name: httpbin
-      namespace: httpbin
+      namespace: gloo-mesh-addons
     serverSettings:
       cluster: mgmt
       name: rate-limit-server
@@ -1999,7 +1999,7 @@ glooMeshUi:
 
 Now upgrade Gloo Mesh
 ```
-helm --kube-context ${MGMT} upgrade --install gloo-mesh-enterprise gloo-mesh-enterprise/gloo-mesh-enterprise -n gloo-mesh --version=2.0.8 --values=values.yaml
+helm --kube-context ${MGMT} upgrade --install gloo-mesh-enterprise gloo-mesh-enterprise/gloo-mesh-enterprise -n gloo-mesh --version=2.0.9 --values=values.yaml
 ```
 
 Now that we have injected the gloo-mesh-ui with a sidecar, we should be able to see this reflected as `4/4` READY pods. If not just delete the pod so it re-deploys with one
@@ -2014,6 +2014,32 @@ gloo-mesh-ui-54c67b5bc6-bwv5n            4/4     Running   1 (56m ago)   56m
 ```
 
 ### Create our Virtual Destination and Route Table
+
+First we can create our VirtualDestination
+```bash
+kubectl apply --context ${MGMT} -f- <<EOF
+apiVersion: networking.gloo.solo.io/v2
+kind: VirtualDestination
+metadata:
+  labels:
+    expose: "true"
+  name: gm-ui-vd
+  namespace: gloo-mesh
+spec:
+  hosts:
+  - gm-ui.mgmt.global
+  ports:
+  - number: 8090
+    protocol: HTTP
+  services:
+  - cluster: mgmt
+    labels:
+      app: gloo-mesh-ui
+    namespace: gloo-mesh
+EOF
+```
+
+Next we can deploy the route table mapping to this virtual destination
 ```bash
 kubectl apply --context ${MGMT} -f- <<EOF
 apiVersion: networking.gloo.solo.io/v2
@@ -2055,25 +2081,6 @@ spec:
     name: north-south-gw-80
     namespace: istio-gateways
   workloadSelectors: []
----
-apiVersion: networking.gloo.solo.io/v2
-kind: VirtualDestination
-metadata:
-  labels:
-    expose: "true"
-  name: gm-ui-vd
-  namespace: gloo-mesh
-spec:
-  hosts:
-  - gm-ui.mgmt.global
-  ports:
-  - number: 8090
-    protocol: HTTP
-  services:
-  - cluster: mgmt
-    labels:
-      app: gloo-mesh-ui
-    namespace: gloo-mesh
 EOF
 ```
 
@@ -2190,13 +2197,20 @@ glooMeshUi:
 
 Now upgrade Gloo Mesh
 ```
-helm --kube-context ${MGMT} upgrade --install gloo-mesh-enterprise gloo-mesh-enterprise/gloo-mesh-enterprise -n gloo-mesh --version=2.0.8 --values=values.yaml
+helm --kube-context ${MGMT} upgrade --install gloo-mesh-enterprise gloo-mesh-enterprise/gloo-mesh-enterprise -n gloo-mesh --version=2.0.9 --values=values.yaml
 ```
 
 To access the Gloo Mesh UI protected by OIDC we must properly configure DNS to map to the `<app_url>` defined above to our gateway IP (i.e. https://gmui.glootest.com). One method is to modify your `/etc/hosts` file locally
+
+Echo your gateway IP variable we saved earlier:
+```bash
+echo $HOST_GW_MGMT
 ```
+
+Then modify your /etc/hosts to add this entry mapped to your gateway IP
+```bash
 # mgmt
-<GATEWAY_IP> gmui.glootest.com
+$HOST_GW_MGMT gmui.glootest.com
 ```
 
 Once configured, you should be able to access the Gloo Mesh UI at https://gmui.glootest.com and it should be now be protected by OIDC.
