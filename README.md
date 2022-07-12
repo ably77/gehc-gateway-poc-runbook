@@ -467,22 +467,23 @@ glooMeshMgmtServer:
   ports:
     healthcheck: 8091
     grpc: 9900
-  serviceType: LoadBalancer
-  # Additional settings to add to the load balancer service
-  serviceOverrides:
-    metadata:
-      annotations:
-        # AWS-specific annotations
-        service.beta.kubernetes.io/aws-load-balancer-healthcheck-healthy-threshold: "2"
-        service.beta.kubernetes.io/aws-load-balancer-healthcheck-unhealthy-threshold: "2"
-        service.beta.kubernetes.io/aws-load-balancer-healthcheck-interval: "10"
-        service.beta.kubernetes.io/aws-load-balancer-healthcheck-port: "9900"
-        service.beta.kubernetes.io/aws-load-balancer-healthcheck-protocol: "tcp"
-        service.beta.kubernetes.io/aws-load-balancer-type: external
-        service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
-        service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
-        service.beta.kubernetes.io/aws-load-balancer-backend-protocol: TCP
-        service.beta.kubernetes.io/aws-load-balancer-name: solo-poc-gloo-mesh-mgmt-server
+  serviceType: ClusterIP
+  # Additional settings to add to the load balancer service if configuring a multi-cluster setup
+  #serviceType: LoadBalancer
+  #serviceOverrides:
+  #  metadata:
+  #    annotations:
+  #      # AWS-specific annotations
+  #      service.beta.kubernetes.io/aws-load-balancer-healthcheck-healthy-threshold: "2"
+  #      service.beta.kubernetes.io/aws-load-balancer-healthcheck-unhealthy-threshold: "2"
+  #      service.beta.kubernetes.io/aws-load-balancer-healthcheck-interval: "10"
+  #      service.beta.kubernetes.io/aws-load-balancer-healthcheck-port: "9900"
+  #      service.beta.kubernetes.io/aws-load-balancer-healthcheck-protocol: "tcp"
+  #      service.beta.kubernetes.io/aws-load-balancer-type: external
+  #      service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+  #      service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+  #      service.beta.kubernetes.io/aws-load-balancer-backend-protocol: TCP
+  #      service.beta.kubernetes.io/aws-load-balancer-name: solo-poc-gloo-mesh-mgmt-server
   relay:
     disableCA: false
     disableCACertGeneration: false
@@ -520,18 +521,6 @@ EOF
 kubectl --context ${MGMT} -n gloo-mesh rollout status deploy/gloo-mesh-mgmt-server
 ```
 
-Next, we need to set the environment variable to tell the Gloo Mesh agents how to communicate with the management plane:
-```bash
-export ENDPOINT_GLOO_MESH=$(kubectl --context ${MGMT} -n gloo-mesh get svc gloo-mesh-mgmt-server -o jsonpath='{.status.loadBalancer.ingress[0].*}'):9900
-export HOST_GLOO_MESH=$(echo ${ENDPOINT_GLOO_MESH} | cut -d: -f1)
-```
-
-Check that the variables have correct values:
-```
-echo $HOST_GLOO_MESH
-echo $ENDPOINT_GLOO_MESH
-```
-
 ### Register your clusters with Helm
 Finally, you need to register the cluster(s).
 
@@ -553,7 +542,7 @@ EOF
 helm upgrade --install gloo-mesh-agent gloo-mesh-agent/gloo-mesh-agent \
   --namespace gloo-mesh \
   --kube-context=${MGMT} \
-  --set relay.serverAddress=${ENDPOINT_GLOO_MESH} \
+  --set relay.serverAddress="gloo-mesh-mgmt-server.gloo-mesh.svc.cluster.local:9900" \
   --set relay.authority=gloo-mesh-mgmt-server.gloo-mesh \
   --set rate-limiter.enabled=false \
   --set ext-auth-service.enabled=false \
