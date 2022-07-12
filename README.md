@@ -63,7 +63,7 @@ Gloo Mesh Gateway is an abstraction built on Istio's ingress gateway model, whic
 
 ### High Level Diagram
 A high level diagram of the base components in our single Kubernetes cluster is shown below. We will expand on this diagram as we move along with the labs
-![Gloo Mesh Workshop Environment](images/runbook1a.png)
+![Gloo Mesh Workshop Environment](images/runbook1b.png)
 
 ## Lab 0 - Prerequisites <a name="Lab-0"></a>
 
@@ -639,7 +639,7 @@ helm upgrade --install gloo-mesh-agent-addons gloo-mesh-agent/gloo-mesh-agent \
 ```
 
 This is how the environment looks like now:
-![Gloo Mesh Workshop Environment](images/runbook1a.png)
+![Gloo Mesh Workshop Environment](images/runbook1b.png)
 
 ## Lab 5 - Create Gloo Mesh Workspaces <a name="Lab-5"></a>
 The platform team needs to create the corresponding `Workspace` Kubernetes objects in the Gloo Mesh management cluster.
@@ -851,7 +851,7 @@ The Httpbin team has decided to export the following to the `gateway` workspace 
 
 This is how to environment looks like with the workspaces:
 
-![Gloo Mesh Workspaces](images/runbook2a.png)
+![Gloo Mesh Workspaces](images/runbook2b.png)
 
 
 ## Lab 6 - Expose the productpage through a gateway <a name="Lab-6"></a>
@@ -1029,7 +1029,7 @@ echo "https://${ENDPOINT_HTTPS_GW_MGMT}/productpage"
 
 This diagram shows the flow of the request (through the Istio Ingress Gateway):
 
-![Gloo Mesh Gateway](images/runbook3a.png)
+![Gloo Mesh Gateway](images/runbook3b.png)
 
 ## Lab 7 - Canary deployment with traffic shifting <a name="Lab-7"></a>
 
@@ -1310,7 +1310,7 @@ If you refresh the page several times, you'll see an error message telling that 
 
 This diagram shows where the timeout and delay have been applied:
 
-![Gloo Mesh Traffic Policies](images/runbook4a.png)
+![Gloo Mesh Traffic Policies](images/runbook4b.png)
 
 Let's delete the Gloo Mesh objects we've created:
 
@@ -1398,7 +1398,7 @@ echo "https://${ENDPOINT_HTTPS_GW_MGMT}/get"
 Note that when the response comes from the external service (httpbin.org), there's a `X-Amzn-Trace-Id` header.
 
 This diagram shows our new flow
-![Gloo Mesh External Service](images/runbook5a.png)
+![Gloo Mesh External Service](images/runbook5b.png)
 
 ### Exposing a service external to the mesh, but in-cluster
 Similar to the exercise above, we can also expose services that are external to the mesh but in-cluster with the same workflow using `ExternalService` and modifying our `RouteTable`
@@ -1531,7 +1531,7 @@ If you refresh your browser, you should see that you get a response either from 
 - When the response comes from the external service `in-mesh`, there is an additional `X-Forwarded-Client-Cert` that contains the SPIFFE ID which is used to validate mTLS
 
 This diagram shows our current setup with weighted routing
-![Gloo Mesh External Service](images/runbook6a.png)
+![Gloo Mesh External Service](images/runbook6b.png)
 
 ### Canary to in-mesh service
 Finally, you can update the `RouteTable` to direct all the traffic to the local `httpbin` service:
