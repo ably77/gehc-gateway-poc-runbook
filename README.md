@@ -56,12 +56,15 @@ Gloo Mesh provides many unique features, including:
 - simplified cross cluster communications (using virtual destinations)
 - advanced gateway capabilities (oauth, jwt, transformations, rate limiting, web application firewall, ...)
 
+### Gloo Gateway overview
+Gloo Mesh Gateway is an abstraction built on Istio's ingress gateway model, which uses an Envoy proxy as the ingress gateway into and out of your multicluster service mesh environment. Gloo Mesh adds powerful multicluster, multimesh capabilities. You use custom resources such as Gloo Mesh virtual gateways, route tables, and policies to simplify configuring ingress traffic rules. You can even reuse the same external auth, rate limiting, and policies as for your east-west traffic.
+
 ![Gloo Mesh Dashboard](images/runbook7a.png)
 
 ## Lab 0 - Prerequisites <a name="Lab-0"></a>
 
 ### HIGHLY RECOMMENDED: Read Before Starting the Labs Below:
-Before you start running through the Labs below, it is highly recommended to read the About and Concepts sections linked below. Here you will begin to learn the high level value add that Gloo Mesh brings to your Istio architecture. Understanding of the concepts and architecture of Gloo Mesh will help us greatly as we move along the hands-on labs.
+Before you start running through the Labs below, it is highly recommended to read the About and Concepts sections linked below. Here you will begin to learn the high level value add that Gloo Mesh and Gloo Gateway brings to your Kubernetes architecture. Understanding of the concepts and architecture of Gloo Gateway will help us greatly as we move along the hands-on labs.
 
 [Gloo Mesh Docs - Concepts](https://docs.solo.io/gloo-mesh-enterprise/main/concepts/)
 
