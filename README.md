@@ -631,7 +631,36 @@ This is how the environment looks like now:
 ![Gloo Mesh Workshop Environment](images/runbook1b.png)
 
 ## Lab 5 - Create Gloo Mesh Workspaces <a name="Lab-5"></a>
-The platform team needs to create the corresponding `Workspace` Kubernetes objects in the Gloo Mesh management cluster.
+Gloo Mesh introduces a new concept, the Workspace custom resource. A workspace consists of one or more Kubernetes namespaces that are in one or more clusters. Think of a workspace as the boundary of your team's resources. To get started, create a workspace for each of your teams. Your teams might start with their apps in a couple Kubernetes namespaces in a single cluster. As your teams scale across namespaces and clusters, their workspaces scale with them
+
+> ### Setting a Wildcard Workspace
+> The lab example below is provided to demonstrate the Workspaces concept and how it can provide strict multitenancy controls within the cluster as well as across multiple clusters. If you were to prefer starting with a wide-open `wildcard` workspace it is also possible with the config below.
+> 
+>```
+>apiVersion: admin.gloo.solo.io/v2
+>kind: Workspace
+>metadata:
+>  name: wildcard
+>  namespace: gloo-mesh
+>spec:
+>  workloadClusters:
+>  - name: '*'
+>    namespaces:
+>    - name: '*'
+>---
+>apiVersion: admin.gloo.solo.io/v2
+>kind: WorkspaceSettings
+>metadata:
+>  name: wildcard
+>  namespace: gloo-mesh
+>spec:
+>  exportTo:
+>  - workspaces:
+>    - name: '*'
+>  importFrom:
+>  - workspaces:
+>    - name: '*'
+>```
 
 ### Create the admin Workspace
 First we are going to create a new workspace that we will name the Admin Workspace. In this workspace we will put management tools such as the gloo-mesh namespace (or in future tools like argocd, for example)
