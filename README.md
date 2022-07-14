@@ -661,6 +661,8 @@ Gloo Mesh introduces a new concept, the Workspace custom resource. A workspace c
 >  - workspaces:
 >    - name: '*'
 >```
+>
+> **Note: If you have decided to go with a wildcard workspace for your cluster, you can skip forward to Lab 6**
 
 ### Create the admin Workspace
 First we are going to create a new workspace that we will name the Admin Workspace. In this workspace we will put management tools such as the gloo-mesh namespace (or in future tools like argocd, for example)
