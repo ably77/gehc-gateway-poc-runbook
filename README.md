@@ -1435,7 +1435,7 @@ metadata:
     expose: "true"
 spec:
   hosts:
-  - not-in-mesh.httpbin.svc.cluster.local
+  - not-in-mesh.httpbin
   ports:
   - name: https
     number: 8000
