@@ -2033,33 +2033,8 @@ gloo-mesh-agent-598bc58db9-7xbjv         1/1     Running   1 (58m ago)   59m
 gloo-mesh-ui-54c67b5bc6-bwv5n            4/4     Running   1 (56m ago)   56m
 ```
 
-### Create our Virtual Destination and Route Table
-
-First we can create our VirtualDestination
-```bash
-kubectl apply --context ${MGMT} -f- <<EOF
-apiVersion: networking.gloo.solo.io/v2
-kind: VirtualDestination
-metadata:
-  labels:
-    expose: "true"
-  name: gm-ui-vd
-  namespace: gloo-mesh
-spec:
-  hosts:
-  - gm-ui.mgmt.global
-  ports:
-  - number: 8090
-    protocol: HTTP
-  services:
-  - cluster: mgmt
-    labels:
-      app: gloo-mesh-ui
-    namespace: gloo-mesh
-EOF
-```
-
-Next we can deploy the route table mapping to this virtual destination
+### Expose the Gloo Mesh UI using a Route Table
+Next we can deploy the route table mapping to this destination
 ```bash
 kubectl apply --context ${MGMT} -f- <<EOF
 apiVersion: networking.gloo.solo.io/v2
@@ -2067,7 +2042,7 @@ kind: RouteTable
 metadata:
   labels:
     expose: "true"
-  name: gm-ui-rt
+  name: gm-ui-rt-443
   namespace: gloo-mesh
 spec:
   hosts:
@@ -2075,13 +2050,13 @@ spec:
   http:
   - forwardTo:
       destinations:
-      - kind: VIRTUAL_DESTINATION
+      - ref:
+          name: gloo-mesh-ui
+          namespace: gloo-mesh
         port:
           number: 8090
-        ref:
-          cluster: mgmt
-          name: gm-ui-vd
-          namespace: gloo-mesh
+    labels:
+      waf: "true"
     name: gloo-mesh-ui
     matchers:
     - uri:
@@ -2093,9 +2068,7 @@ spec:
     - uri:
         prefix: /policies
     - uri:
-        prefix: /oidc-callback
-    - uri:
-        prefix: /logout
+          prefix: /oidc-callback
   virtualGateways:
   - cluster: mgmt
     name: north-south-gw-80
@@ -2109,7 +2082,7 @@ Now you should be able to access the Gloo Mesh UI on port 80
 echo "http://${ENDPOINT_HTTP_GW_MGMT}"
 ```
 
-Alternatively you can also apply the `RouteTable` to the gateway on 443 instead
+Alternatively you can also apply the `RouteTable` to the gateway on 443 instead by selecting the `spec.virtualGateway.name: north-south-gw-443` 
 ```bash
 kubectl apply --context ${MGMT} -f- <<EOF
 apiVersion: networking.gloo.solo.io/v2
@@ -2117,7 +2090,7 @@ kind: RouteTable
 metadata:
   labels:
     expose: "true"
-  name: gm-ui-rt
+  name: gm-ui-rt-443
   namespace: gloo-mesh
 spec:
   hosts:
@@ -2125,13 +2098,13 @@ spec:
   http:
   - forwardTo:
       destinations:
-      - kind: VIRTUAL_DESTINATION
+      - ref:
+          name: gloo-mesh-ui
+          namespace: gloo-mesh
         port:
           number: 8090
-        ref:
-          cluster: mgmt
-          name: gm-ui-vd
-          namespace: gloo-mesh
+    labels:
+      waf: "true"
     name: gloo-mesh-ui
     matchers:
     - uri:
@@ -2143,9 +2116,7 @@ spec:
     - uri:
         prefix: /policies
     - uri:
-        prefix: /oidc-callback
-    - uri:
-        prefix: /logout
+          prefix: /oidc-callback
   virtualGateways:
   - cluster: mgmt
     name: north-south-gw-443
