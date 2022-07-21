@@ -1979,10 +1979,10 @@ The UI is available at http://localhost:8090
 To expose the Gloo Mesh UI using our Ingress Gateway instead of port-forwarding, first we will add the Gloo Mesh UI pod into the mesh
 
 ### Update Gloo Mesh Helm 
-
 Save this as a values.yaml, keep the commented out sections as we may use those later
-```
-licenseKey: <INSERT_LICENSE_KEY_HERE>
+```bash
+cat <<EOF >>values.yaml
+licenseKey: ${GLOO_MESH_LICENSE_KEY}
 mgmtClusterName: mgmt
 glooMeshMgmtServer:
   ports:
@@ -1991,21 +1991,6 @@ glooMeshMgmtServer:
 glooMeshUi:
   enabled: true
   serviceType: ClusterIP
-  #auth:
-  #  enabled: true
-  #  backend: oidc
-  #  oidc: 
-  #    # From the OIDC provider
-  #    clientId: "<client_id>"
-  #    # From the OIDC provider. To be base64 encoded and stored as a kubernetes secret.
-  #    clientSecret: "<client_secret>"
-  #    # Name for generated secret
-  #    clientSecretName: dashboard
-  #    # The issuer URL from the OIDC provider, usually something like 'https://<domain>.<provider_url>/'.
-  #    issuerUrl: <issuer_url>
-  #    # The URL that the UI for the OIDC app is available at, from the DNS and other ingress settings that expose the OIDC app UI service.
-  #    appUrl: "<app_url>"
-  #
   # if cluster is istio enabled we can also add the dashboard into the mesh
   deploymentOverrides:
     spec:
@@ -2015,10 +2000,11 @@ glooMeshUi:
             sidecar.istio.io/inject: "true"
           labels:
             istio.io/rev: "1-13"
+EOF
 ```
 
 Now upgrade Gloo Mesh
-```
+```bash
 helm --kube-context ${MGMT} upgrade --install gloo-mesh-enterprise gloo-mesh-enterprise/gloo-mesh-enterprise -n gloo-mesh --version=2.0.9 --values=values.yaml
 ```
 
@@ -2133,6 +2119,12 @@ echo "https://${ENDPOINT_HTTPS_GW_MGMT}"
 ## Lab 15 - Integrate Gloo Mesh UI with OIDC <a name="Lab-15"></a>
 Now that we have our Gloo Mesh UI exposed, we can integrate it with our OIDC. The Gloo Mesh API server has its own external auth service built in. This way, you can manage external auth for the Gloo Mesh UI separately from the external auth that you set up for your application networking policies.
 
+Integrating the Gloo Mesh UI with OIDC consists of a few steps:
+```
+- create app registration for the Gloo Mesh UI in your OIDC
+- Using Helm, update Gloo Mesh with new OIDC configuration
+```
+
 The `gloo-mesh-enterprise` helm chart lets us define the OIDC values inline. The values OIDC values are described below:
 ```
 glooMeshUi:
@@ -2148,11 +2140,33 @@ glooMeshUi:
       appUrl: # The URL that the Gloo Mesh UI is exposed at, such as 'https://localhost:8090'.
 ```
 
-### Update Gloo Mesh Helm 
+### Setting our Variables
+Set the callback URL in your OIDC provider to map to our newly exposed Gloo Mesh UI route
+```bash
+export GMUI_CALLBACK_URL="https://$(kubectl --context ${MGMT} -n istio-gateways get svc istio-ingressgateway -o jsonpath='{.status.loadBalancer.ingress[0].*}')"
 
-Edit your existing `values.yaml` to fill in the auth config that we have uncommented below
+echo ${GMUI_CALLBACK_URL}
 ```
-licenseKey: <INSERT_LICENSE_KEY_HERE>
+
+Replace the `OICD_CLIENT_ID` and `ISSUER_URL` values below with your OIDC app settings:
+```bash
+export GMUI_OIDC_CLIENT_ID="<client ID for Gloo Mesh UI app>"
+export GMUI_OIDC_CLIENT_SECRET="<client secret for Gloo Mesh UI app>"
+export ISSUER_URL="<OIDC issuer url (i.e. https://dev-22651234.okta.com/oauth2/default)>"
+```
+
+Let's make sure our variables are set correctly:
+```bash
+echo ${GMUI_OIDC_CLIENT_ID}
+echo ${GMUI_OIDC_CLIENT_SECRET}
+echo ${ISSUER_URL}
+```
+
+### Update Gloo Mesh Helm
+Let's save a new `values-oidc.yaml` to fill in the auth config that we have uncommented below
+```bash
+cat <<EOF >>values-oidc.yaml
+licenseKey: ${GLOO_MESH_LICENSE_KEY}
 mgmtClusterName: mgmt
 glooMeshMgmtServer:
   ports:
@@ -2166,15 +2180,15 @@ glooMeshUi:
     backend: oidc
     oidc: 
       # From the OIDC provider
-      clientId: "<client_id>"
+      clientId: "${GMUI_OIDC_CLIENT_ID}"
       # From the OIDC provider. To be base64 encoded and stored as a kubernetes secret.
-      clientSecret: "<client_secret>"
+      clientSecret: "${GMUI_OIDC_CLIENT_SECRET}"
       # Name for generated secret
       clientSecretName: dashboard
       # The issuer URL from the OIDC provider, usually something like 'https://<domain>.<provider_url>/'.
-      issuerUrl: <issuer_url>
+      issuerUrl: ${ISSUER_URL}
       # The URL that the UI for the OIDC app is available at, from the DNS and other ingress settings that expose the OIDC app UI service.
-      appUrl: "<app_url>"
+      appUrl: "${GMUI_CALLBACK_URL}"
   # if cluster is istio enabled we can also add the dashboard into the mesh
   deploymentOverrides:
     spec:
@@ -2184,27 +2198,19 @@ glooMeshUi:
             sidecar.istio.io/inject: "true"
           labels:
             istio.io/rev: "1-13"
+EOF
 ```
 
-Now upgrade Gloo Mesh
-```
-helm --kube-context ${MGMT} upgrade --install gloo-mesh-enterprise gloo-mesh-enterprise/gloo-mesh-enterprise -n gloo-mesh --version=2.0.9 --values=values.yaml
-```
-
-To access the Gloo Mesh UI protected by OIDC we must properly configure DNS to map to the `<app_url>` defined above to our gateway IP (i.e. https://gmui.glootest.com). One method is to modify your `/etc/hosts` file locally
-
-Echo your gateway IP variable we saved earlier:
+### Update Gloo Mesh using Helm
+Now upgrade Gloo Mesh with our new `values-oidc.yaml` to pick up our new config
 ```bash
-echo $HOST_GW_MGMT
+helm --kube-context ${MGMT} upgrade --install gloo-mesh-enterprise gloo-mesh-enterprise/gloo-mesh-enterprise -n gloo-mesh --version=2.0.9 --values=values-oidc.yaml
 ```
 
-Then modify your /etc/hosts to add this entry mapped to your gateway IP
+Once configured, we should be able to access the Gloo Mesh UI and it should be now be protected by OIDC.
 ```bash
-# mgmt
-$HOST_GW_MGMT gmui.glootest.com
+echo ${GMUI_CALLBACK_URL}
 ```
-
-Once configured, you should be able to access the Gloo Mesh UI at https://gmui.glootest.com and it should be now be protected by OIDC.
 
 ![Gloo Mesh Dashboard OIDC](images/runbook8a.png)
 
