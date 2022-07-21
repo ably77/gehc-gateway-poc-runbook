@@ -2788,7 +2788,7 @@ kubectl --context ${MGMT} -n httpbin delete jwtpolicy httpbin
 kubectl --context ${MGMT} -n httpbin delete transformationpolicy modify-x-email-header
 ```
 
-# [Lab 20 - Access Logging](#Lab-20)
+## [Lab 20 - Access Logging](#Lab-20)
 If you take a look back at [Lab 2 - Deploy Istio](#Lab-2) when deploying istiod we set the config
 ```
 meshConfig:
