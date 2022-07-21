@@ -2028,7 +2028,7 @@ kind: RouteTable
 metadata:
   labels:
     expose: "true"
-  name: gm-ui-rt-443
+  name: gm-ui-rt
   namespace: gloo-mesh
 spec:
   hosts:
@@ -2076,7 +2076,7 @@ kind: RouteTable
 metadata:
   labels:
     expose: "true"
-  name: gm-ui-rt-443
+  name: gm-ui-rt
   namespace: gloo-mesh
 spec:
   hosts:
