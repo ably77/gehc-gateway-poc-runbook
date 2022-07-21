@@ -2209,9 +2209,10 @@ Once configured, you should be able to access the Gloo Mesh UI at https://gmui.g
 ![Gloo Mesh Dashboard OIDC](images/runbook8a.png)
 
 ## Lab 16 - Securing Application access with OAuth <a name="Lab-16"></a>
-In this step, we're going to secure the access to the `httpbin` service using OAuth. This example will use an Okta Developer Account workflow as an example, but should be compatible with the OIDC provider used in Lab 17 above
+In this step, we're going to secure the access to the `httpbin` service using OAuth. The first step is to create the app registration for the `httpbin` app in your OIDC
 
-First, we need to create a Kubernetes Secret that contains the OIDC client-secret. Please provide this value input before running the command below:
+### In your OIDC Provider
+Once the app has been configured in the external OIDC, we need to create a Kubernetes Secret that contains the OIDC client-secret. Please provide this value input before running the command below:
 ```bash
 export HTTPBIN_CLIENT_SECRET="<provide OIDC client secret here>"
 ```
@@ -2229,7 +2230,6 @@ data:
 EOF
 ```
 
-### In your OIDC Provider
 Set the callback URL in your OIDC provider to map to our httpbin app
 ```
 export APP_CALLBACK_URL="https://$(kubectl --context ${MGMT} -n istio-gateways get svc istio-ingressgateway -o jsonpath='{.status.loadBalancer.ingress[0].*}')/get"
@@ -2237,11 +2237,10 @@ export APP_CALLBACK_URL="https://$(kubectl --context ${MGMT} -n istio-gateways g
 echo $APP_CALLBACK_URL
 ```
 
-### Set the variables below
-Please replace the `OICD_CLIENT_ID` and `ISSUER_URL` values below with your OIDC app settings:
+Lastly, replace the `OICD_CLIENT_ID` and `ISSUER_URL` values below with your OIDC app settings:
 ```
-export OIDC_CLIENT_ID="0oa1m92a1oDelGCg1234"
-export ISSUER_URL="https://dev-22651234.okta.com/oauth2/default"
+export OIDC_CLIENT_ID="<client ID for httpbin app>"
+export ISSUER_URL="<OIDC issuer url (i.e. https://dev-22651234.okta.com/oauth2/default)>"
 ```
 
 Let's make sure our variables are set correctly:
@@ -2300,7 +2299,6 @@ EOF
 ```
 
 After that, you need to create an `ExtAuthServer`, which is a CRD that define which extauth server to use: 
-
 ```bash
 kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: admin.gloo.solo.io/v2
@@ -2320,7 +2318,6 @@ EOF
 ```
 
 Finally, you need to update the `RouteTable` to use this `AuthConfig`:
-
 ```bash
 kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: networking.gloo.solo.io/v2
