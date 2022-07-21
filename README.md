@@ -2229,13 +2229,29 @@ data:
 EOF
 ```
 
-Then, you need to create an `ExtAuthPolicy`, which is a CRD that contains authentication information. Please provide this value input before running the command below: 
+### In your OIDC Provider
+Set the callback URL in your OIDC provider to map to our httpbin app
 ```
-export APP_CALLBACK_URL="https://httpbin.glootest.com/get"
+export APP_CALLBACK_URL="https://$(kubectl --context ${MGMT} -n istio-gateways get svc istio-ingressgateway -o jsonpath='{.status.loadBalancer.ingress[0].*}')/get"
+
+echo $APP_CALLBACK_URL
+```
+
+### Set the variables below
+Please replace the `OICD_CLIENT_ID` and `ISSUER_URL` values below with your OIDC app settings:
+```
 export OIDC_CLIENT_ID="0oa1m92a1oDelGCg1234"
 export ISSUER_URL="https://dev-22651234.okta.com/oauth2/default"
 ```
 
+Let's make sure our variables are set correctly:
+```
+echo $OIDC_CLIENT_ID
+echo $ISSUER_URL
+```
+
+### Create ExtAuthPolicy
+Now we will create an `ExtAuthPolicy`, which is a CRD that contains authentication information. 
 ```bash
 kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: security.policy.gloo.solo.io/v2
@@ -2316,7 +2332,6 @@ metadata:
     expose: "true"
 spec:
   hosts:
-    - 'httpbin.glootest.com'
     - '*'
   virtualGateways:
     - name: north-south-gw-443
@@ -2348,14 +2363,10 @@ spec:
 EOF
 ```
 
-To access the httpbin app protected by OIDC we must properly configure DNS to map to the `<app_url>` defined above to our gateway IP (i.e. https://httpbin.glootest.com/get). One method is to modify your `/etc/hosts` file locally
-```
-# mgmt
-<GATEWAY_IP> gmui.glootest.com
-<GATEWAY_IP> httpbin.glootest.com
-```
-
 Now when you access your httpbin app through the browser, it will be protected by the OIDC provider login page
+```
+echo "${APP_CALLBACK_URL}"
+```
 
 ## Lab 17 - Integrating with OPA <a name="Lab-17"></a>
 
@@ -2407,13 +2418,13 @@ spec:
       configs:
       - oauth2:
           oidcAuthorizationCode:
-            appUrl: https://httpbin.glootest.com/get
+            appUrl: ${APP_CALLBACK_URL}
             callbackPath: /callback
-            clientId: 0oa1m92a1oDelGCgw5d7
+            clientId: ${OIDC_CLIENT_ID}
             clientSecretRef:
               name: httpbin-okta-client-secret
               namespace: httpbin
-            issuerUrl: https://dev-22653158.okta.com/oauth2/default
+            issuerUrl: ${ISSUER_URL}
             session:
               failOnFetchFailure: true
               redis:
@@ -2430,7 +2441,6 @@ spec:
             afterLogoutUrl: /get
             headers:
               idTokenHeader: Jwt
-              accessTokenHeader: access-token
       - opaAuth:
           modules:
           - name: httpbin-opa
