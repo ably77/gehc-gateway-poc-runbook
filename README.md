@@ -2231,20 +2231,20 @@ EOF
 ```
 
 Set the callback URL in your OIDC provider to map to our httpbin app
-```
+```bash
 export APP_CALLBACK_URL="https://$(kubectl --context ${MGMT} -n istio-gateways get svc istio-ingressgateway -o jsonpath='{.status.loadBalancer.ingress[0].*}')/get"
 
 echo $APP_CALLBACK_URL
 ```
 
 Lastly, replace the `OICD_CLIENT_ID` and `ISSUER_URL` values below with your OIDC app settings:
-```
+```bash
 export OIDC_CLIENT_ID="<client ID for httpbin app>"
 export ISSUER_URL="<OIDC issuer url (i.e. https://dev-22651234.okta.com/oauth2/default)>"
 ```
 
 Let's make sure our variables are set correctly:
-```
+```bash
 echo $OIDC_CLIENT_ID
 echo $ISSUER_URL
 ```
