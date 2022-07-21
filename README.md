@@ -2209,7 +2209,12 @@ Once configured, you should be able to access the Gloo Mesh UI at https://gmui.g
 ![Gloo Mesh Dashboard OIDC](images/runbook8a.png)
 
 ## Lab 16 - Securing Application access with OAuth <a name="Lab-16"></a>
-In this step, we're going to secure the access to the `httpbin` service using OAuth. The first step is to create the app registration for the `httpbin` app in your OIDC
+In this step, we're going to secure the access to the `httpbin` service using OAuth. Integrating an app with extauth consists of a few steps:
+```
+- create app registration in your OIDC
+- configuring a Gloo Mesh `ExtAuthPolicy` and `ExtAuthServer`
+- configuring the `RouteTable` with a specified label (i.e. `oauth: "true"`)
+```
 
 ### In your OIDC Provider
 Once the app has been configured in the external OIDC, we need to create a Kubernetes Secret that contains the OIDC client-secret. Please provide this value input before running the command below:
