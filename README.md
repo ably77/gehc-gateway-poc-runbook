@@ -2054,7 +2054,7 @@ spec:
     - uri:
         prefix: /policies
     - uri:
-          prefix: /oidc-callback
+        prefix: /oidc-callback
   virtualGateways:
   - cluster: mgmt
     name: north-south-gw-80
@@ -2102,7 +2102,7 @@ spec:
     - uri:
         prefix: /policies
     - uri:
-          prefix: /oidc-callback
+        prefix: /oidc-callback
   virtualGateways:
   - cluster: mgmt
     name: north-south-gw-443
