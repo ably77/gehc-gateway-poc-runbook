@@ -2046,13 +2046,15 @@ spec:
     name: gloo-mesh-ui
     matchers:
     - uri:
-        prefix: /
+        exact: /
     - uri:
-        prefix: /graph
+        exact: /welcome
     - uri:
-        prefix: /gateways
+        prefix: /static
     - uri:
-        prefix: /policies
+        prefix: /login
+    - uri:
+        prefix: /rpc
     - uri:
         prefix: /oidc-callback
   virtualGateways:
@@ -2094,13 +2096,15 @@ spec:
     name: gloo-mesh-ui
     matchers:
     - uri:
-        prefix: /
+        exact: /
     - uri:
-        prefix: /graph
+        exact: /welcome
     - uri:
-        prefix: /gateways
+        prefix: /static
     - uri:
-        prefix: /policies
+        prefix: /login
+    - uri:
+        prefix: /rpc
     - uri:
         prefix: /oidc-callback
   virtualGateways:
