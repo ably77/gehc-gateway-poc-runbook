@@ -915,7 +915,7 @@ metadata:
     expose: "true"
 spec:
   hosts:
-    - '*.elb.us-east-1.amazonaws.com'
+    - '*'
   virtualGateways:
     - name: north-south-gw-80
       namespace: istio-gateways
@@ -1012,7 +1012,7 @@ metadata:
     expose: "true"
 spec:
   hosts:
-    - '*.elb.us-east-1.amazonaws.com'
+    - '*'
   virtualGateways:
     - name: north-south-gw-443
       namespace: istio-gateways
@@ -1384,7 +1384,7 @@ metadata:
     expose: "true"
 spec:
   hosts:
-    - '*.elb.us-east-1.amazonaws.com'
+    - '*'
   virtualGateways:
     - name: north-south-gw-443
       namespace: istio-gateways
@@ -1455,7 +1455,7 @@ metadata:
     expose: "true"
 spec:
   hosts:
-    - '*.elb.us-east-1.amazonaws.com'
+    - '*'
   virtualGateways:
     - name: north-south-gw-443
       namespace: istio-gateways
@@ -1506,7 +1506,7 @@ metadata:
     expose: "true"
 spec:
   hosts:
-    - '*.elb.us-east-1.amazonaws.com'
+    - '*'
   virtualGateways:
     - name: north-south-gw-443
       namespace: istio-gateways
@@ -1567,7 +1567,7 @@ metadata:
     expose: "true"
 spec:
   hosts:
-    - '*.elb.us-east-1.amazonaws.com'
+    - '*'
   virtualGateways:
     - name: north-south-gw-443
       namespace: istio-gateways
@@ -1716,7 +1716,7 @@ metadata:
     expose: "true"
 spec:
   hosts:
-    - '*.elb.us-east-1.amazonaws.com'
+    - '*'
   virtualGateways:
     - name: north-south-gw-443
       namespace: istio-gateways
@@ -1860,7 +1860,7 @@ metadata:
     expose: "true"
 spec:
   hosts:
-    - '*.elb.us-east-1.amazonaws.com'
+    - '*'
   virtualGateways:
     - name: north-south-gw-443
       namespace: istio-gateways
@@ -1918,7 +1918,7 @@ metadata:
     expose: "true"
 spec:
   hosts:
-    - '*.elb.us-east-1.amazonaws.com'
+    - '*'
   virtualGateways:
     - name: north-south-gw-443
       namespace: istio-gateways
@@ -2032,7 +2032,7 @@ metadata:
   namespace: gloo-mesh
 spec:
   hosts:
-  - '*.elb.us-east-1.amazonaws.com'
+  - '*'
   http:
   - forwardTo:
       destinations:
@@ -2082,7 +2082,7 @@ metadata:
   namespace: gloo-mesh
 spec:
   hosts:
-  - '*.elb.us-east-1.amazonaws.com'
+  - '*'
   http:
   - forwardTo:
       destinations:
@@ -2344,7 +2344,7 @@ metadata:
     expose: "true"
 spec:
   hosts:
-    - '*.elb.us-east-1.amazonaws.com'
+    - '*'
   virtualGateways:
     - name: north-south-gw-443
       namespace: istio-gateways
@@ -2756,7 +2756,7 @@ metadata:
     expose: "true"
 spec:
   hosts:
-    - '*.elb.us-east-1.amazonaws.com'
+    - '*'
   virtualGateways:
     - name: north-south-gw-443
       namespace: istio-gateways
