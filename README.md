@@ -2056,6 +2056,8 @@ spec:
     - uri:
         prefix: /rpc
     - uri:
+        prefix: /workspace
+    - uri:
         prefix: /oidc-callback
   virtualGateways:
   - cluster: mgmt
@@ -2105,6 +2107,8 @@ spec:
         prefix: /login
     - uri:
         prefix: /rpc
+    - uri:
+        prefix: /workspace
     - uri:
         prefix: /oidc-callback
   virtualGateways:
