@@ -2292,7 +2292,7 @@ spec:
       - oauth2:
           oidcAuthorizationCode:
             appUrl: ${APP_CALLBACK_URL}
-            callbackPath: /callback
+            callbackPath: /oidc-callback
             clientId: ${OIDC_CLIENT_ID}
             clientSecretRef:
               name: httpbin-oidc-client-secret
@@ -2366,7 +2366,7 @@ spec:
       - uri:
           prefix: /anything
       - uri:
-          prefix: /callback
+          prefix: /oidc-callback
       - uri:
           prefix: /logout
       forwardTo:
@@ -2435,7 +2435,7 @@ spec:
       - oauth2:
           oidcAuthorizationCode:
             appUrl: ${APP_CALLBACK_URL}
-            callbackPath: /callback
+            callbackPath: /oidc-callback
             clientId: ${OIDC_CLIENT_ID}
             clientSecretRef:
               name: httpbin-oidc-client-secret
