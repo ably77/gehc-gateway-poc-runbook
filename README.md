@@ -2241,7 +2241,7 @@ kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: v1
 kind: Secret
 metadata:
-  name: httpbin-okta-client-secret
+  name: httpbin-oidc-client-secret
   namespace: httpbin
 type: extauth.solo.io/oauth
 data:
@@ -2295,13 +2295,13 @@ spec:
             callbackPath: /callback
             clientId: ${OIDC_CLIENT_ID}
             clientSecretRef:
-              name: httpbin-okta-client-secret
+              name: httpbin-oidc-client-secret
               namespace: httpbin
             issuerUrl: ${ISSUER_URL}
             session:
               failOnFetchFailure: true
               redis:
-                cookieName: okta-session
+                cookieName: gehc-session
                 options:
                   host: redis.gloo-mesh-addons:6379
                 allowRefreshing: false
@@ -2438,13 +2438,13 @@ spec:
             callbackPath: /callback
             clientId: ${OIDC_CLIENT_ID}
             clientSecretRef:
-              name: httpbin-okta-client-secret
+              name: httpbin-oidc-client-secret
               namespace: httpbin
             issuerUrl: ${ISSUER_URL}
             session:
               failOnFetchFailure: true
               redis:
-                cookieName: okta-session
+                cookieName: oidc-session
                 options:
                   host: redis.gloo-mesh-addons:6379
                 allowRefreshing: false
@@ -2624,10 +2624,10 @@ kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: networking.gloo.solo.io/v2
 kind: ExternalEndpoint
 metadata:
-  name: okta-jwks
+  name: oidc-jwks
   namespace: httpbin
   labels:
-    host: okta-jwks
+    host: oidc-jwks
 spec:
   # This external endpoint identifies the host where Okta publishes the jwks_uri endpoint for my dev account
   # See https://dev-22653158-admin.okta.com/oauth2/default/.well-known/oauth-authorization-server
@@ -2644,20 +2644,20 @@ kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: networking.gloo.solo.io/v2
 kind: ExternalService
 metadata:
-  name: okta-jwks
+  name: oidc-jwks
   namespace: httpbin
   labels:
     expose: "true"
 spec:
   hosts:
-  - okta-jwks.external
+  - oidc-jwks.external
   ports:
   - name: https
     number: 443
     protocol: HTTPS
     clientsideTls: {}
   selector:
-    host: okta-jwks
+    host: oidc-jwks
 EOF
 ```
 
@@ -2682,7 +2682,7 @@ spec:
       postAuthz:
         priority: 1
     providers:
-      okta:
+      oidc:
         issuer: https://dev-22653158.okta.com/oauth2/default
         tokenSource:
           headers:
@@ -2692,7 +2692,7 @@ spec:
           url: "https://dev-22653158.okta.com/oauth2/default/v1/keys/"
           destinationRef:
             ref:
-              name: okta-jwks
+              name: oidc-jwks
               namespace: httpbin
               cluster: mgmt
             kind: EXTERNAL_SERVICE
@@ -2787,15 +2787,15 @@ Lets clean up the OAuth policies we've created:
 ```
 # extauth config
 kubectl --context ${MGMT} -n httpbin delete ExtAuthPolicy httpbin
-kubectl --context ${MGMT} -n httpbin delete secret httpbin-okta-client-secret
+kubectl --context ${MGMT} -n httpbin delete secret httpbin-oidc-client-secret
 kubectl --context ${MGMT} -n httpbin delete ExtAuthServer mgmt-ext-auth-server
 
 # opa config
 kubectl --context ${MGMT} -n httpbin delete configmap httpbin-opa
 
 # jwtpolicy
-kubectl --context ${MGMT} -n httpbin delete externalendpoint okta-jwks
-kubectl --context ${MGMT} -n httpbin delete externalservice okta-jwks
+kubectl --context ${MGMT} -n httpbin delete externalendpoint oidc-jwks
+kubectl --context ${MGMT} -n httpbin delete externalservice oidc-jwks
 kubectl --context ${MGMT} -n httpbin delete jwtpolicy httpbin
 
 # transformation
