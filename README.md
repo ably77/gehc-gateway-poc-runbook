@@ -32,7 +32,7 @@ source ./scripts/assert.sh
 * [Lab 17 - Integrating with OPA](#Lab-17)
 * [Lab 18 - Use the JWT filter to create headers from claims](#Lab-18)
 * [Lab 19 - Use the transformation filter to manipulate headers](#Lab-19)
-* [Lab 20 - Access Logging](#Lab-20)
+* [Lab 21 - Access Logging](#Lab-21)
 
 ## Introduction to Gloo Mesh <a name="introduction"></a>
 [Gloo Mesh Enterprise](https://www.solo.io/products/gloo-mesh/) is a management plane which makes it easy to operate [Istio](https://istio.io) on one or many Kubernetes clusters deployed anywhere (any platform, anywhere).
@@ -2878,7 +2878,154 @@ kubectl --context ${MGMT} -n httpbin delete jwtpolicy httpbin
 kubectl --context ${MGMT} -n httpbin delete transformationpolicy modify-x-email-header
 ```
 
-## [Lab 20 - Access Logging](#Lab-20)
+## [Lab 20 - Route Table Delegation](#Lab-20)
+
+See [Official Docs](https://docs.solo.io/gloo-mesh-enterprise/latest/routing/rt-delegation/)
+As your Gloo Mesh environment grows in size and complexity, the number of routes configured on a given gateway might increase considerably. Or, you might have multiple ways of routing to a particular path for an app that are difficult to consistently switch between. To organize multiple routes, you can create sub-tables for individual route setups. Then, you create a root route table that delegates requests to those sub-tables based on a specified sorting method.
+
+
+Below is a basic example for Route Delegation using our `httpbin` app. take a look at the official docs for more examples and documentation
+
+Lets make sure to remove the current `httpbin` route
+```
+kubectl --context ${MGMT} -n httpbin delete routetable httpbin
+```
+
+Then we will first deploy our `httpbin-root` RouteTable. This is where we define our domain. This root route table would typically be owned by the Gateway team and delegated to development teams
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: networking.gloo.solo.io/v2
+kind: RouteTable
+metadata:
+  name: httpbin-root
+  namespace: httpbin
+  labels:
+    expose: "true"
+spec:
+  hosts:
+    - '*'
+  virtualGateways:
+    - name: north-south-gw-443
+      namespace: istio-gateways
+      cluster: mgmt
+  workloadSelectors: []
+  http:
+  - delegate:
+      # Selects tables based on label
+      routeTables:
+        - labels:
+            table: httpbin-table
+      # Delegates based on order of weights
+      sortMethod: ROUTE_SPECIFICITY
+EOF
+```
+
+Next we will configure our `httpbin-delegate1` RouteTable. This delegate table will own the `/get` path of the `httpbin` app
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: networking.gloo.solo.io/v2
+kind: RouteTable
+metadata:
+  name: httpbin-delegate1
+  namespace: httpbin
+  labels:
+    expose: "true"
+    table: httpbin-table
+spec:
+  http:
+    - name: httpbin-get
+      matchers:
+      - uri:
+          exact: /get
+      forwardTo:
+        destinations:
+        - ref:
+            name: in-mesh
+            namespace: httpbin
+          port:
+            number: 8000
+EOF
+```
+
+You should now be able to access the httpbin application at the `/get` endpoint again
+```
+echo "${APP_CALLBACK_URL}"
+```
+
+Now lets add a second delegated table. This delegate table will own the `/anything` path of the `httpbin` app
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: networking.gloo.solo.io/v2
+kind: RouteTable
+metadata:
+  name: httpbin-delegate2
+  namespace: httpbin
+  labels:
+    expose: "true"
+    table: httpbin-table
+spec:
+  http:
+    - name: httpbin-anything
+      matchers:
+      - uri:
+          prefix: /anything
+      forwardTo:
+        destinations:
+        - ref:
+            name: in-mesh
+            namespace: httpbin
+          port:
+            number: 8000
+EOF
+```
+
+Now you should be able to access the `/anything` endpoint.
+
+### cleanup
+Lets clean up the OAuth policies we've created:
+```
+kubectl --context ${MGMT} -n httpbin delete routetable httpbin-root
+kubectl --context ${MGMT} -n httpbin delete routetable httpbin-delegate1
+kubectl --context ${MGMT} -n httpbin delete routetable httpbin-delegate2
+```
+
+
+First let's apply the original `RouteTable` yaml:
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: networking.gloo.solo.io/v2
+kind: RouteTable
+metadata:
+  name: httpbin
+  namespace: httpbin
+  labels:
+    expose: "true"
+spec:
+  hosts:
+    - '*'
+  virtualGateways:
+    - name: north-south-gw-443
+      namespace: istio-gateways
+      cluster: mgmt
+  workloadSelectors: []
+  http:
+    - name: httpbin
+      matchers:
+      - uri:
+          exact: /get
+      - uri:
+          prefix: /anything
+      forwardTo:
+        destinations:
+        - ref:
+            name: in-mesh
+            namespace: httpbin
+          port:
+            number: 8000
+EOF
+```
+
+## [Lab 21 - Access Logging](#Lab-21)
 If you take a look back at [Lab 2 - Deploy Istio](#Lab-2) when deploying istiod we set the config
 ```
 meshConfig:
