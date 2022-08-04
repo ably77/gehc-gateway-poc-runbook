@@ -2386,7 +2386,14 @@ echo "${APP_CALLBACK_URL}"
 
 ## Lab 17 - Integrating with OPA <a name="Lab-17"></a>
 
-You can also perform authorization using OPA. 
+### OPA inputs
+You can also perform authorization using OPA. Gloo Mesh's OPA integration populates an input document to use in your OPA policies which allows you to easily write rego policy
+- `input.check_request` - By default, all OPA policies will contain an Envoy Auth Service CheckRequest. This object contains all the information Envoy has gathered of the request being processed. See the Envoy docs and proto files for AttributeContext for the structure of this object.
+- `input.http_request` - When processing an HTTP request, this field will be populated for convenience. See the Envoy HttpRequest docs and proto files for the structure of this object.
+- `input.state.jwt` - When the OIDC auth plugin is utilized, the token retrieved during the OIDC flow is placed into this field. 
+
+## Lab
+In this lab, we will make use of the `input.state.jwt` parameter in our OPA policies to decode the `jwt` token retrieved in the last lab and create policies using the claims available, namely the `sub` and `email` claims.
 
 ### Enforce @solo.io username login by inspecting the JWT email payload
 For our first use-case we will decode the JWT token passed through extauth for the `email` payload, and enforce that a user logging in must end with `@solo.io` as the username with OPA
@@ -2407,7 +2414,7 @@ data:
 
     allow {
         [header, payload, signature] = io.jwt.decode(input.state.jwt)
-        endswith(payload["email"], "@solo.io")
+        endswith(payload["sub"], "@hc.ge.com")
     }
 EOF
 ```
@@ -2467,7 +2474,7 @@ EOF
 Now we should see success when logging in with a username that ends with `@solo.io` but will encounter a `403 Error - You don't have authorization to view this page` when using a username that ends with anything else (`@gmail.com` for example)
 
 ### Expand to other email suffixes
-We can expand on our example to accept users with `@gmail.com` by modifying the rego rule
+We can expand on our example to accept users with `@gmail.com` email claim by modifying the rego rule
 ```bash
 kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: v1
@@ -2493,6 +2500,46 @@ EOF
 ```
 
 Now you should be able to access the app logging in with users that end in `@gmail.com` as well as `@solo.io`
+
+### Map to other claims in JWT
+If you decode the JWT provided (using jwt.io for example), we can see other claims available
+```
+{
+  "sub": "alex.solo@hc.ge.com",
+  "email": "alex.ly@solo.io"
+}
+```
+
+We can modify our rego rule to apply policy to map to `sub` as well as `email` claims
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: httpbin-opa
+  namespace: httpbin
+data:
+  policy.rego: |-
+    package ehs
+
+    default allow = false
+
+    allow {
+        [header, payload, signature] = io.jwt.decode(input.state.jwt)
+        endswith(payload["email"], "@solo.io")
+    }
+    allow {
+        [header, payload, signature] = io.jwt.decode(input.state.jwt)
+        endswith(payload["email"], "@gmail.com")
+    }
+    allow {
+        [header, payload, signature] = io.jwt.decode(input.state.jwt)
+        endswith(payload["sub"], "@hc.ge.com")
+    }
+EOF
+```
+
+Now you should be able to access the app logging in with users that end in `@gmail.com`, `@solo.io`, as well as `@hc.ge.com`
 
 ### Use OPA to enforce a specific HTTP method
 Let's continue to expand on our example by enforcing different HTTP methods for our two types of users
@@ -2526,10 +2573,18 @@ data:
              input.http_request.method == "DELETE",
     })
     }
+    allow {
+        [header, payload, signature] = io.jwt.decode(input.state.jwt)
+        endswith(payload["sub"], "@hc.ge.com")
+        any({input.http_request.method == "POST",
+             input.http_request.method == "PUT",
+             input.http_request.method == "DELETE",
+    })
+    }
 EOF
 ```
 
-If you refresh the browser where the `@gmail.com` user is logged in, we should now see a `403 Error - You don't have authorization to view this page`. This is because we are not allowing the `GET` method for the `@gmail.com` user in our OPA policy
+If you refresh the browser where the `@gmail.com` or `@hc.ge.com` user is logged in, we should now see a `403 Error - You don't have authorization to view this page`. This is because we are not allowing the `GET` method for either of those matches in our OPA policy
 
 Let's fix that
 ```bash
@@ -2557,6 +2612,15 @@ data:
     allow {
         [header, payload, signature] = io.jwt.decode(input.state.jwt)
         endswith(payload["email"], "@gmail.com")
+        any({input.http_request.method == "GET",
+             input.http_request.method == "POST",
+             input.http_request.method == "PUT",
+             input.http_request.method == "DELETE",
+    })
+    }
+    allow {
+        [header, payload, signature] = io.jwt.decode(input.state.jwt)
+        endswith(payload["sub"], "@hc.ge.com")
         any({input.http_request.method == "GET",
              input.http_request.method == "POST",
              input.http_request.method == "PUT",
@@ -2607,9 +2671,21 @@ data:
              input.http_request.method == "DELETE",
     })
     }
+    allow {
+        [header, payload, signature] = io.jwt.decode(input.state.jwt)
+        endswith(payload["sub"], "@hc.ge.com")
+        any({input.http_request.path == "/get",
+        startswith(input.http_request.path, "/anything")
+    })
+        any({input.http_request.method == "GET",
+             input.http_request.method == "POST",
+             input.http_request.method == "PUT",
+             input.http_request.method == "DELETE",
+    })
+    }
 EOF
 ```
-If you refresh the browser where the `@solo.io` user is logged in, we should be able to access the `/get` endpoint as well as any path with the prefix `/anything`. Try and access `/anything/foo` for example - it should work.
+If you refresh the browser where the `@solo.io` or `@hc.ge.com` user is logged in, we should be able to access the `/get` endpoint as well as any path with the prefix `/anything`. Try and access `/anything/foo` for example - it should work.
 
 If you refresh the browser where the `@gmail.com` user is logged in, we should now see a `403 Error - You don't have authorization to view this page` if you access anything other than the `/anything/protected` endpoint
 
