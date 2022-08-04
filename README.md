@@ -32,6 +32,7 @@ source ./scripts/assert.sh
 * [Lab 17 - Integrating with OPA](#Lab-17)
 * [Lab 18 - Use the JWT filter to create headers from claims](#Lab-18)
 * [Lab 19 - Use the transformation filter to manipulate headers](#Lab-19)
+* [Lab 20 - Route Table Delegation](#Lab-20)
 * [Lab 21 - Access Logging](#Lab-21)
 
 ## Introduction to Gloo Mesh <a name="introduction"></a>
