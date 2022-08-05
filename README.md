@@ -2415,7 +2415,7 @@ data:
 
     allow {
         [header, payload, signature] = io.jwt.decode(input.state.jwt)
-        endswith(payload["sub"], "@hc.ge.com")
+        endswith(payload["email"], "@solo.io")
     }
 EOF
 ```
