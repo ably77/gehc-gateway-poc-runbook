@@ -32,8 +32,11 @@ source ./scripts/assert.sh
 * [Lab 17 - Integrating with OPA](#Lab-17)
 * [Lab 18 - Use the JWT filter to create headers from claims](#Lab-18)
 * [Lab 19 - Use the transformation filter to manipulate headers](#Lab-19)
-* [Lab 20 - Route Table Delegation](#Lab-20)
-* [Lab 21 - Access Logging](#Lab-21)
+* [Lab 20 - Implement OPA on new validated/transformed claims](#Lab-20)
+* [Lab 21 - Route Table Delegation](#Lab-21)
+* [Lab 22 - Access Logging](#Lab-22)
+
+
 
 ## Introduction to Gloo Mesh <a name="introduction"></a>
 [Gloo Mesh Enterprise](https://www.solo.io/products/gloo-mesh/) is a management plane which makes it easy to operate [Istio](https://istio.io) on one or many Kubernetes clusters deployed anywhere (any platform, anywhere).
@@ -2842,7 +2845,7 @@ kubectl --context ${MGMT} -n httpbin delete jwtpolicy httpbin
 kubectl --context ${MGMT} -n httpbin delete transformationpolicy modify-x-email-header
 ```
 
-## [Lab 20 - Route Table Delegation](#Lab-20)
+## [Lab 21 - Route Table Delegation](#Lab-21)
 
 See [Official Docs](https://docs.solo.io/gloo-mesh-enterprise/latest/routing/rt-delegation/)
 As your Gloo Mesh environment grows in size and complexity, the number of routes configured on a given gateway might increase considerably. Or, you might have multiple ways of routing to a particular path for an app that are difficult to consistently switch between. To organize multiple routes, you can create sub-tables for individual route setups. Then, you create a root route table that delegates requests to those sub-tables based on a specified sorting method.
@@ -2989,7 +2992,7 @@ spec:
 EOF
 ```
 
-## [Lab 21 - Access Logging](#Lab-21)
+## [Lab 22 - Access Logging](#Lab-22)
 If you take a look back at [Lab 2 - Deploy Istio](#Lab-2) when deploying istiod we set the config
 ```
 meshConfig:
