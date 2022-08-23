@@ -2276,7 +2276,7 @@ kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: security.policy.gloo.solo.io/v2
 kind: ExtAuthPolicy
 metadata:
-  name: httpbin
+  name: httpbin-extauth
   namespace: httpbin
 spec:
   applyToRoutes:
@@ -2394,7 +2394,43 @@ You can also perform authorization using OPA. Gloo Mesh's OPA integration popula
 - `input.state.jwt` - When the OIDC auth plugin is utilized, the token retrieved during the OIDC flow is placed into this field. 
 
 ## Lab
-In this lab, we will make use of the `input.state.jwt` parameter in our OPA policies to decode the `jwt` token retrieved in the last lab and create policies using the claims available, namely the `sub` and `email` claims.
+In this lab, we will make use of the `input.http_request` parameter in our OPA policies to decode the `jwt` token retrieved in the last lab and create policies using the claims available, namely the `sub` and `email` claims.
+
+Instead of coupling the `oauth2` config with the `opa` config in a single `ExtAuthPolicy`, here we will separate the app to decouple the APIs from apps
+
+## High Level Workflow
+![Gloo Mesh Dashboard OIDC](images/runbook9a.png)
+
+First we will create a new `ExtAuthPolicy` object to add the OPA filter. Note the use of the `applyToDestinations` in this `ExtAuthPolicy` instead of `applyToRoutes`. This matcher allows us to specify a destination where we want to apply our policy to, rather than on a Route. Note that the below uses a direct reference, but label matchers would work as well.
+
+Lets apply the following policy
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: security.policy.gloo.solo.io/v2
+kind: ExtAuthPolicy
+metadata:
+  name: httpbin-opa
+  namespace: httpbin
+spec:
+  applyToDestinations:
+  - selector:
+      name: in-mesh
+      namespace: httpbin
+      workspace: httpbin
+  config:
+    server:
+      name: mgmt-ext-auth-server
+      namespace: httpbin
+      cluster: mgmt
+    glooAuth:
+      configs:
+      - opaAuth:
+          modules:
+          - name: httpbin-opa
+            namespace: httpbin
+          query: "data.ehs.allow == true"
+EOF
+```
 
 ### Enforce @solo.io username login by inspecting the JWT email payload
 For our first use-case we will decode the JWT token passed through extauth for the `email` payload, and enforce that a user logging in must end with `@solo.io` as the username with OPA
@@ -2414,93 +2450,13 @@ data:
     default allow = false
 
     allow {
-        [header, payload, signature] = io.jwt.decode(input.state.jwt)
+        [header, payload, signature] = io.jwt.decode(input.http_request.headers.jwt)
         endswith(payload["email"], "@solo.io")
     }
 EOF
 ```
 
-Then, you need to update the `ExtAuthPolicy` object to add the authorization step:
-```bash
-kubectl --context ${MGMT} apply -f - <<EOF
-apiVersion: security.policy.gloo.solo.io/v2
-kind: ExtAuthPolicy
-metadata:
-  name: httpbin
-  namespace: httpbin
-spec:
-  applyToRoutes:
-  - route:
-      labels:
-        oauth: "true"
-  config:
-    server:
-      name: mgmt-ext-auth-server
-      namespace: httpbin
-      cluster: mgmt
-    glooAuth:
-      configs:
-      - oauth2:
-          oidcAuthorizationCode:
-            appUrl: ${APP_CALLBACK_URL}
-            callbackPath: /oidc-callback
-            clientId: ${OIDC_CLIENT_ID}
-            clientSecretRef:
-              name: httpbin-oidc-client-secret
-              namespace: httpbin
-            issuerUrl: ${ISSUER_URL}
-            session:
-              failOnFetchFailure: true
-              redis:
-                cookieName: oidc-session
-                options:
-                  host: redis.gloo-mesh-addons:6379
-                allowRefreshing: false
-              cookieOptions:
-                maxAge: "1800"
-            scopes:
-            - email
-            - profile
-            logoutPath: /logout
-            afterLogoutUrl: /get
-            headers:
-              idTokenHeader: Jwt
-      - opaAuth:
-          modules:
-          - name: httpbin-opa
-            namespace: httpbin
-          query: "data.ehs.allow == true"
-EOF
-```
 Now we should see success when logging in with a username that ends with `@solo.io` but will encounter a `403 Error - You don't have authorization to view this page` when using a username that ends with anything else (`@gmail.com` for example)
-
-### Expand to other email suffixes
-We can expand on our example to accept users with `@gmail.com` email claim by modifying the rego rule
-```bash
-kubectl --context ${MGMT} apply -f - <<EOF
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: httpbin-opa
-  namespace: httpbin
-data:
-  policy.rego: |-
-    package ehs
-
-    default allow = false
-
-    allow {
-        [header, payload, signature] = io.jwt.decode(input.state.jwt)
-        endswith(payload["email"], "@solo.io")
-    }
-    allow {
-        [header, payload, signature] = io.jwt.decode(input.state.jwt)
-        endswith(payload["email"], "@gmail.com")
-    }
-EOF
-```
-
-Now you should be able to access the app logging in with users that end in `@gmail.com` as well as `@solo.io`
 
 ### Map to other claims in JWT
 If you decode the JWT provided (using jwt.io for example), we can see other claims available
@@ -2526,21 +2482,17 @@ data:
     default allow = false
 
     allow {
-        [header, payload, signature] = io.jwt.decode(input.state.jwt)
-        endswith(payload["email"], "@solo.io")
+        [header, payload, signature] = io.jwt.decode(input.http_request.headers.jwt)
+        endswith(payload["email"], "@solo.i")
     }
     allow {
-        [header, payload, signature] = io.jwt.decode(input.state.jwt)
-        endswith(payload["email"], "@gmail.com")
-    }
-    allow {
-        [header, payload, signature] = io.jwt.decode(input.state.jwt)
+        [header, payload, signature] = io.jwt.decode(input.http_request.headers.jwt)
         endswith(payload["sub"], "@hc.ge.com")
     }
 EOF
 ```
 
-Now you should be able to access the app logging in with users that end in `@gmail.com`, `@solo.io`, as well as `@hc.ge.com`
+Now you should be able to access the app logging in with users that end in `@solo.io`, as well as `@hc.ge.com`
 
 ### Use OPA to enforce a specific HTTP method
 Let's continue to expand on our example by enforcing different HTTP methods for our two types of users
@@ -2558,24 +2510,15 @@ data:
     default allow = false
 
     allow {
-        [header, payload, signature] = io.jwt.decode(input.state.jwt)
+        [header, payload, signature] = io.jwt.decode(input.http_request.headers.jwt)
         endswith(payload["email"], "@solo.io")
-        any({input.http_request.method == "GET",
-             input.http_request.method == "POST",
-             input.http_request.method == "PUT",
-             input.http_request.method == "DELETE",
-    })
-    }
-    allow {
-        [header, payload, signature] = io.jwt.decode(input.state.jwt)
-        endswith(payload["email"], "@gmail.com")
         any({input.http_request.method == "POST",
              input.http_request.method == "PUT",
              input.http_request.method == "DELETE",
     })
     }
     allow {
-        [header, payload, signature] = io.jwt.decode(input.state.jwt)
+        [header, payload, signature] = io.jwt.decode(input.http_request.headers.jwt)
         endswith(payload["sub"], "@hc.ge.com")
         any({input.http_request.method == "POST",
              input.http_request.method == "PUT",
@@ -2585,7 +2528,7 @@ data:
 EOF
 ```
 
-If you refresh the browser where the `@gmail.com` or `@hc.ge.com` user is logged in, we should now see a `403 Error - You don't have authorization to view this page`. This is because we are not allowing the `GET` method for either of those matches in our OPA policy
+If you refresh the browser where the `@solo.io` or `@hc.ge.com` user is logged in, we should now see a `403 Error - You don't have authorization to view this page`. This is because we are not allowing the `GET` method for either of those matches in our OPA policy
 
 Let's fix that
 ```bash
@@ -2602,7 +2545,7 @@ data:
     default allow = false
 
     allow {
-        [header, payload, signature] = io.jwt.decode(input.state.jwt)
+        [header, payload, signature] = io.jwt.decode(input.http_request.headers.jwt)
         endswith(payload["email"], "@solo.io")
         any({input.http_request.method == "GET",
              input.http_request.method == "POST",
@@ -2611,16 +2554,7 @@ data:
     })
     }
     allow {
-        [header, payload, signature] = io.jwt.decode(input.state.jwt)
-        endswith(payload["email"], "@gmail.com")
-        any({input.http_request.method == "GET",
-             input.http_request.method == "POST",
-             input.http_request.method == "PUT",
-             input.http_request.method == "DELETE",
-    })
-    }
-    allow {
-        [header, payload, signature] = io.jwt.decode(input.state.jwt)
+        [header, payload, signature] = io.jwt.decode(input.http_request.headers.jwt)
         endswith(payload["sub"], "@hc.ge.com")
         any({input.http_request.method == "GET",
              input.http_request.method == "POST",
@@ -2636,7 +2570,7 @@ Now we should be able to access our app again.
 ### Enforce paths with OPA
 Let's continue to expand on our example by enforcing a specified path for our users
 
-Here we will modify our rego rule so that users with `@solo.io` can access the `/get` endpoint as well as any path with the prefix `/anything`, while users with `@gmail.com` can only access specifically the `/anything/protected` endpoint
+Here we will modify our rego rule so that users with the `sub` claim containing `@hc.ge.com` can access the `/get` endpoint as well as any path with the prefix `/anything`, while users with the `email` claim containing `@solo.io` can only access specifically the `/anything/protected` endpoint
 ```bash
 kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: v1
@@ -2651,29 +2585,7 @@ data:
     default allow = false
 
     allow {
-        [header, payload, signature] = io.jwt.decode(input.state.jwt)
-        endswith(payload["email"], "@solo.io")
-        any({input.http_request.path == "/get",
-        startswith(input.http_request.path, "/anything")
-    })
-        any({input.http_request.method == "GET",
-             input.http_request.method == "POST",
-             input.http_request.method == "PUT",
-             input.http_request.method == "DELETE",
-    })
-    }
-    allow {
-        [header, payload, signature] = io.jwt.decode(input.state.jwt)
-        endswith(payload["email"], "@gmail.com")
-        input.http_request.path == "/anything/protected"
-        any({input.http_request.method == "GET",
-             input.http_request.method == "POST",
-             input.http_request.method == "PUT",
-             input.http_request.method == "DELETE",
-    })
-    }
-    allow {
-        [header, payload, signature] = io.jwt.decode(input.state.jwt)
+        [header, payload, signature] = io.jwt.decode(input.http_request.headers.jwt)
         endswith(payload["sub"], "@hc.ge.com")
         any({input.http_request.path == "/get",
         startswith(input.http_request.path, "/anything")
@@ -2684,16 +2596,32 @@ data:
              input.http_request.method == "DELETE",
     })
     }
+    allow {
+        [header, payload, signature] = io.jwt.decode(input.http_request.headers.jwt)
+        endswith(payload["email"], "@solo.io")
+        input.http_request.path == "/anything/protected"
+        any({input.http_request.method == "GET",
+             input.http_request.method == "POST",
+             input.http_request.method == "PUT",
+             input.http_request.method == "DELETE",
+    })
+    }
 EOF
 ```
-If you refresh the browser where the `@solo.io` or `@hc.ge.com` user is logged in, we should be able to access the `/get` endpoint as well as any path with the prefix `/anything`. Try and access `/anything/foo` for example - it should work.
+If you refresh the browser where the `@hc.ge.com` user is logged in, we should be able to access the `/get` endpoint as well as any path with the prefix `/anything`. Try and access `/anything/foo` for example - it should work.
 
-If you refresh the browser where the `@gmail.com` user is logged in, we should now see a `403 Error - You don't have authorization to view this page` if you access anything other than the `/anything/protected` endpoint
+If you refresh the browser where the `@solo.io` user is logged in, we should now see a `403 Error - You don't have authorization to view this page` if you access anything other than the `/anything/protected` endpoint
 
 ## Lab 18 - Use the JWT filter to create headers from claims <a name="Lab-18"></a>
-In this step, we're going to validate the JWT token and to create a new header from the `email` claim.
+In this step, we're going to validate the JWT token and to create a new header from the `email` or `sub` claim. By doing so, we can gain a few benefits:
+- Simplified OPA policies (Lab 20)
+- JWT token doesn’t need to be passed along to backend and to OPA server (optional)            
+- JWT policy can do JWT token level validations upfront and then extract claims and pass them as arbitrary headers to the backend. Rego policies are then simpler and can deal with these validated headers for RBAC decisions rather than decoding them from JWT.
 
-Okta is running outside of the Service Mesh, so we need to define an `ExternalService` and its associated `ExternalEndpoint`. 
+## High Level Workflow
+![Gloo Mesh Dashboard OIDC](images/runbook10a.png)
+
+JWKS endpoint is typically running outside of the Service Mesh, so we need to define an `ExternalService` and its associated `ExternalEndpoint`. The below example uses Okta, so please replace with your own.
 
 The external endpoint represents the server or service outside of your service mesh that you want to reach. By using a Gloo Mesh external service, you can then assign a unique hostname to this external endpoint that services in your mesh can use to send requests. You can also use this service to route incoming requests from your ingress gateway directly to your external endpoint.
 ```bash
@@ -2779,14 +2707,14 @@ spec:
         claimsToHeaders:
         - claim: email
           header: X-Email
-        - claim: groups
-          header: X-Groups
+        - claim: sub
+          header: X-Sub
 EOF
 ```
 
 You can see that it will be applied to our existing route and also that we want to execute it after performing the external authentication (to have access to the JWT token).
 
-If you refresh the web page, you should see a new `X-Email` header added to the request with the value from Okta
+If you refresh the web page, you should see new `X-Email` and `X-Sub` headers have replaced our `jwt` header. Note that if you want to keep the `jwt` header and just extract the claims to new headers this is also possible.
 
 ## Lab 19 - Use the transformation filter to manipulate headers <a name="Lab-19"></a>
 Let's explore using the transformation filter again, this time we're going to use a regular expression to extract a part of an existing header and to create a new one:
@@ -2823,6 +2751,40 @@ EOF
 You can see that it will be applied to our existing route and also that we want to execute it after performing the external authentication (to have access to the JWT token).
 
 If you refresh the web page, you should see a new `X-Organization` header added to the request with the value `solo.io`!
+
+## Lab 20 - Implement OPA on new validated/transformed claims <a name="Lab-20"></a>
+Now that we have validated, extracted, and transformed our claims into the shape we want, we can also configure our OPA policies to simplify our workflow! 
+
+Note that the Lab 19 transformation is not required, you can configure your OPA policy directly on the header provided by `claimsToHeaders` (i.e. `X-Email` and `X-Sub`), but to build on top of our current example we will configure our OPA policy on the `X-Organization` header content
+
+Lets modify our existing OPA config
+```bash
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: httpbin-opa
+  namespace: httpbin
+data:
+  policy.rego: |-
+    package ehs
+
+    default allow = false
+
+    allow {
+        any({input.http_request.path == "/get",
+             input.http_request.path == "/anything"
+          })
+        # these are headers provided by JWTPolicy and claimsToHeaders feature
+        any({input.http_request.headers.x-organization == "solo.io"})
+        any({input.http_request.method == "GET",
+             input.http_request.method == "POST",
+             input.http_request.method == "PUT",
+             input.http_request.method == "DELETE"
+             })
+    }
+```
+
+As you can see, the above policy will allow a user with the validated claim header `X-Organization` we extracted and transformed in the last two labs with the value `solo.io` to access the `/get` and `/anything` path of our httpbin application.
 
 ### cleanup labs 16-20
 First let's apply the original `RouteTable` yaml:
@@ -2863,7 +2825,8 @@ EOF
 Lets clean up the OAuth policies we've created:
 ```
 # extauth config
-kubectl --context ${MGMT} -n httpbin delete ExtAuthPolicy httpbin
+kubectl --context ${MGMT} -n httpbin delete ExtAuthPolicy httpbin-extauth
+kubectl --context ${MGMT} -n httpbin delete ExtAuthPolicy httpbin-opa
 kubectl --context ${MGMT} -n httpbin delete secret httpbin-oidc-client-secret
 kubectl --context ${MGMT} -n httpbin delete ExtAuthServer mgmt-ext-auth-server
 
