@@ -2615,7 +2615,7 @@ If you refresh the browser where the `@hc.ge.com` user is logged in, we should b
 
 If you refresh the browser where the `@solo.io` user is logged in, we should now see a `403 Error - You don't have authorization to view this page` if you access anything other than the `/anything/protected` endpoint
 
-# cleanup extauthpolicy for next labs
+### cleanup extauthpolicy for next labs
 In the next labs we will explore using `JWTPolicy` to extract validated claims into new arbitrary headers and configure our OPA to leverage them. For now, we can remove the `httpbin-opa` policy to validate behavior before reimplementing it.
 ```
 kubectl --context ${MGMT} -n httpbin delete ExtAuthPolicy httpbin-opa
