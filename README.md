@@ -2486,7 +2486,7 @@ data:
 
     allow {
         [header, payload, signature] = io.jwt.decode(input.http_request.headers.jwt)
-        endswith(payload["email"], "@solo.i")
+        endswith(payload["email"], "@solo.io")
     }
     allow {
         [header, payload, signature] = io.jwt.decode(input.http_request.headers.jwt)
@@ -2614,6 +2614,12 @@ EOF
 If you refresh the browser where the `@hc.ge.com` user is logged in, we should be able to access the `/get` endpoint as well as any path with the prefix `/anything`. Try and access `/anything/foo` for example - it should work.
 
 If you refresh the browser where the `@solo.io` user is logged in, we should now see a `403 Error - You don't have authorization to view this page` if you access anything other than the `/anything/protected` endpoint
+
+# cleanup extauthpolicy for next labs
+In the next labs we will explore using `JWTPolicy` to extract validated claims into new arbitrary headers and configure our OPA to leverage them. For now, we can remove the `httpbin-opa` policy to validate behavior before reimplementing it.
+```
+kubectl --context ${MGMT} -n httpbin delete ExtAuthPolicy httpbin-opa
+```
 
 ## Lab 18 - Use the JWT filter to create headers from claims <a name="Lab-18"></a>
 In this step, we're going to validate the JWT token and to create a new header from the `email` or `sub` claim. By doing so, we can gain a few benefits:
@@ -2762,6 +2768,7 @@ Note that the Lab 19 transformation is not required, you can configure your OPA 
 
 Lets modify our existing OPA config
 ```bash
+kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -2778,16 +2785,46 @@ data:
              input.http_request.path == "/anything"
           })
         # these are headers provided by JWTPolicy and claimsToHeaders feature
-        any({input.http_request.headers.x-organization == "solo.io"})
+        #any({input.http_request.headers.x-organization == "solo.io"})
         any({input.http_request.method == "GET",
              input.http_request.method == "POST",
              input.http_request.method == "PUT",
              input.http_request.method == "DELETE"
              })
     }
+EOF
 ```
 
 As you can see, the above policy will allow a user with the validated claim header `X-Organization` we extracted and transformed in the last two labs with the value `solo.io` to access the `/get` and `/anything` path of our httpbin application.
+
+Now let's reimplement our OPA `ExtAuthPolicy` that we used before:
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: security.policy.gloo.solo.io/v2
+kind: ExtAuthPolicy
+metadata:
+  name: httpbin-opa
+  namespace: httpbin
+spec:
+  applyToDestinations:
+  - selector:
+      name: in-mesh
+      namespace: httpbin
+      workspace: httpbin
+  config:
+    server:
+      name: mgmt-ext-auth-server
+      namespace: httpbin
+      cluster: mgmt
+    glooAuth:
+      configs:
+      - opaAuth:
+          modules:
+          - name: httpbin-opa
+            namespace: httpbin
+          query: "data.ehs.allow == true"
+EOF
+```
 
 ### cleanup labs 16-20
 First let's apply the original `RouteTable` yaml:
