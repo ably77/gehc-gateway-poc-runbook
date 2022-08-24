@@ -2753,7 +2753,7 @@ spec:
             regex: '.*@(.*)$'
             subgroup: 1
         headers:
-          x-organization:
+          org:
             text: "{{ organization }}"
 EOF
 ```
@@ -2785,7 +2785,7 @@ data:
              input.http_request.path == "/anything"
           })
         # these are headers provided by JWTPolicy and claimsToHeaders feature
-        #any({input.http_request.headers.x-organization == "solo.io"})
+        #any({input.http_request.headers.org == "solo.io"})
         any({input.http_request.method == "GET",
              input.http_request.method == "POST",
              input.http_request.method == "PUT",
