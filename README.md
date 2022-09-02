@@ -443,7 +443,7 @@ not-in-mesh-5c64bb49cd-m9kwm   1/1     Running   0          11s
 ### Install the meshctl CLI
 First of all, let's install the `meshctl` CLI which will provide us some added functionality for interacting with Gloo Mesh
 ```bash
-export GLOO_MESH_VERSION=v2.0.9
+export GLOO_MESH_VERSION=v2.0.18
 curl -sL https://run.solo.io/meshctl/install | sh -
 export PATH=$HOME/.gloo-mesh/bin:$PATH
 ```
@@ -456,7 +456,7 @@ helm repo update
 kubectl --context ${MGMT} create ns gloo-mesh 
 helm upgrade --install gloo-mesh-enterprise gloo-mesh-enterprise/gloo-mesh-enterprise \
 --namespace gloo-mesh --kube-context ${MGMT} \
---version=2.0.9 \
+--version=2.0.18 \
 --values - <<EOF
 licenseKey: "${GLOO_MESH_LICENSE_KEY}"
 mgmtClusterName: mgmt
@@ -551,7 +551,7 @@ helm upgrade --install gloo-mesh-agent gloo-mesh-agent/gloo-mesh-agent \
   --set rate-limiter.enabled=false \
   --set ext-auth-service.enabled=false \
   --set cluster=mgmt \
-  --version 2.0.9
+  --version 2.0.18
 ```
 
 Note that the registration can also be performed using `meshctl cluster register`.
@@ -628,7 +628,7 @@ helm upgrade --install gloo-mesh-agent-addons gloo-mesh-agent/gloo-mesh-agent \
   --set glooMeshAgent.enabled=false \
   --set rate-limiter.enabled=true \
   --set ext-auth-service.enabled=true \
-  --version 2.0.9
+  --version 2.0.18
 ```
 
 This is how the environment looks like now:
@@ -2009,7 +2009,7 @@ EOF
 
 Now upgrade Gloo Mesh
 ```bash
-helm --kube-context ${MGMT} upgrade --install gloo-mesh-enterprise gloo-mesh-enterprise/gloo-mesh-enterprise -n gloo-mesh --version=2.0.9 --values=values.yaml
+helm --kube-context ${MGMT} upgrade --install gloo-mesh-enterprise gloo-mesh-enterprise/gloo-mesh-enterprise -n gloo-mesh --version=2.0.18 --values=values.yaml
 ```
 
 Now that we have injected the gloo-mesh-ui with a sidecar, we should be able to see this reflected as `4/4` READY pods. If not just delete the pod so it re-deploys with one
@@ -2216,7 +2216,7 @@ EOF
 ### Update Gloo Mesh using Helm
 Now upgrade Gloo Mesh with our new `values-oidc.yaml` to pick up our new config
 ```bash
-helm --kube-context ${MGMT} upgrade --install gloo-mesh-enterprise gloo-mesh-enterprise/gloo-mesh-enterprise -n gloo-mesh --version=2.0.9 --values=values-oidc.yaml
+helm --kube-context ${MGMT} upgrade --install gloo-mesh-enterprise gloo-mesh-enterprise/gloo-mesh-enterprise -n gloo-mesh --version=2.0.18 --values=values-oidc.yaml
 ```
 
 Once configured, we should be able to access the Gloo Mesh UI and it should be now be protected by OIDC.
@@ -2264,6 +2264,7 @@ Lastly, replace the `OICD_CLIENT_ID` and `ISSUER_URL` values below with your OID
 ```bash
 export OIDC_CLIENT_ID="solo-poc-clientid"
 export ISSUER_URL="https://idam.gehealthcloud.io:443/t/solopocapp.group.app/oauth2/token"
+export JWKS_URI="https://idam.gehealthcloud.io:443/t/solopocapp.group.app/oauth2/jwks"
 ```
 
 Let's make sure our variables are set correctly:
@@ -2308,9 +2309,9 @@ spec:
                 cookieName: gehc-session
                 options:
                   host: redis.gloo-mesh-addons:6379
-                allowRefreshing: false
+                allowRefreshing: true
               cookieOptions:
-                maxAge: "1800"
+                maxAge: "90"
             scopes:
             - email
             - profile
@@ -2318,6 +2319,11 @@ spec:
             afterLogoutUrl: /get
             headers:
               idTokenHeader: Jwt
+          accessTokenValidation:
+            jwt:
+              remoteJwks:
+                url: ${JWKS_URI}
+                refreshInterval: 90s
 EOF
 ```
 
@@ -2681,6 +2687,7 @@ spec:
           - name: jwt
         remote:
           url: "https://idam.gehealthcloud.io:443/t/solopocapp.group.app/oauth2/jwks"
+          cacheDuration: 10m
           destinationRef:
             ref:
               name: oidc-jwks
@@ -2689,7 +2696,7 @@ spec:
             kind: EXTERNAL_SERVICE
             port: 
               number: 443
-          enableAsyncFetch: true
+          enableAsyncFetch: false
         claimsToHeaders:
         - claim: email
           header: X-Email
