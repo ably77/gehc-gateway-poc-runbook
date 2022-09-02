@@ -2262,8 +2262,8 @@ echo $APP_CALLBACK_URL
 
 Lastly, replace the `OICD_CLIENT_ID` and `ISSUER_URL` values below with your OIDC app settings:
 ```bash
-export OIDC_CLIENT_ID="<client ID for httpbin app>"
-export ISSUER_URL="<OIDC issuer url (i.e. https://dev-22651234.okta.com/oauth2/default)>"
+export OIDC_CLIENT_ID="solo-poc-clientid"
+export ISSUER_URL="https://idam.gehealthcloud.io:443/t/solopocapp.group.app/oauth2/token"
 ```
 
 Let's make sure our variables are set correctly:
