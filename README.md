@@ -2630,29 +2630,7 @@ In this step, we're going to validate the JWT token and to create a new header f
 ## High Level Workflow
 ![Gloo Mesh Dashboard OIDC](images/runbook10a.png)
 
-JWKS endpoint is typically running outside of the Service Mesh, so we need to define an `ExternalService` and its associated `ExternalEndpoint`. The below example uses Okta, so please replace with your own.
-
-The external endpoint represents the server or service outside of your service mesh that you want to reach. By using a Gloo Mesh external service, you can then assign a unique hostname to this external endpoint that services in your mesh can use to send requests. You can also use this service to route incoming requests from your ingress gateway directly to your external endpoint.
-```bash
-kubectl --context ${MGMT} apply -f - <<EOF
-apiVersion: networking.gloo.solo.io/v2
-kind: ExternalEndpoint
-metadata:
-  name: oidc-jwks
-  namespace: httpbin
-  labels:
-    host: oidc-jwks
-spec:
-  # This external endpoint identifies the host where Okta publishes the jwks_uri endpoint for my dev account
-  # See https://dev-22653158-admin.okta.com/oauth2/default/.well-known/oauth-authorization-server
-  address: dev-22653158.okta.com
-  ports:
-  - name: https
-    number: 443
-EOF
-```
-
-Create an external service resource to expose the external endpoint inside your mesh. In this example, you select all endpoints with the external-endpoint: db label. Note that the hosts field is not required to match the address that you specified in the external endpoint, because this host is an internal address that is used only by the gateways and services within your service mesh.
+JWKS endpoint is running outside of the Service Mesh, so we need to define an `ExternalService`. 
 ```bash
 kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: networking.gloo.solo.io/v2
@@ -2664,7 +2642,7 @@ metadata:
     expose: "true"
 spec:
   hosts:
-  - oidc-jwks.external
+  - idam.gehealthcloud.io
   ports:
   - name: https
     number: 443
@@ -2697,13 +2675,12 @@ spec:
         priority: 1
     providers:
       oidc:
-        issuer: https://dev-22653158.okta.com/oauth2/default
+        issuer: "https://idam.gehealthcloud.io:443/t/solopocapp.group.app/oauth2/token"
         tokenSource:
           headers:
           - name: jwt
         remote:
-          # url grabbed from https://dev-22653158.okta.com/oauth2/default/.well-known/oauth-authorization-server
-          url: "https://dev-22653158.okta.com/oauth2/default/v1/keys/"
+          url: "https://idam.gehealthcloud.io:443/t/solopocapp.group.app/oauth2/jwks"
           destinationRef:
             ref:
               name: oidc-jwks
