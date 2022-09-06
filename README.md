@@ -2260,7 +2260,7 @@ export APP_CALLBACK_URL="https://$(kubectl --context ${MGMT} -n istio-gateways g
 echo $APP_CALLBACK_URL
 ```
 
-Lastly, replace the `OICD_CLIENT_ID` and `ISSUER_URL` values below with your OIDC app settings:
+Lastly, replace the `OICD_CLIENT_ID` and `ISSUER_URL` values below with your OIDC app settings, in a later lab we will also use the `JWKS_URI` endpoint so we can just set it now as well
 ```bash
 export OIDC_CLIENT_ID="solo-poc-clientid"
 export ISSUER_URL="https://idam.gehealthcloud.io:443/t/solopocapp.group.app/oauth2/token"
@@ -2271,6 +2271,7 @@ Let's make sure our variables are set correctly:
 ```bash
 echo $OIDC_CLIENT_ID
 echo $ISSUER_URL
+echo $JWKS_URI
 ```
 
 ### Create ExtAuthPolicy
@@ -2319,11 +2320,6 @@ spec:
             afterLogoutUrl: /get
             headers:
               idTokenHeader: Jwt
-          accessTokenValidation:
-            jwt:
-              remoteJwks:
-                url: ${JWKS_URI}
-                refreshInterval: 90s
 EOF
 ```
 
@@ -2704,10 +2700,63 @@ spec:
           header: X-Sub
 EOF
 ```
+You can see that the `applyToRoutes` is set to our existing routes where `oauth: "true"` but also that we want to execute it after performing the external authentication (to have access to the JWT token) by setting the priority to `priority: 1` (note that lower value has higher priority)
 
-You can see that it will be applied to our existing route and also that we want to execute it after performing the external authentication (to have access to the JWT token).
+## Modify ExtAuthPolicy to add JWT config
+Lastly we will modify our `ExtAuthPolicy` to have the correct `accessTokenValidation` config to fetch our JWKS_URI
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: security.policy.gloo.solo.io/v2
+kind: ExtAuthPolicy
+metadata:
+  name: httpbin-extauth
+  namespace: httpbin
+spec:
+  applyToRoutes:
+  - route:
+      labels:
+        oauth: "true"
+  config:
+    server:
+      name: mgmt-ext-auth-server
+      namespace: httpbin
+      cluster: mgmt
+    glooAuth:
+      configs:
+      - oauth2:
+          oidcAuthorizationCode:
+            appUrl: ${APP_CALLBACK_URL}
+            callbackPath: /oidc-callback
+            clientId: ${OIDC_CLIENT_ID}
+            clientSecretRef:
+              name: httpbin-oidc-client-secret
+              namespace: httpbin
+            issuerUrl: ${ISSUER_URL}
+            session:
+              failOnFetchFailure: true
+              redis:
+                cookieName: gehc-session
+                options:
+                  host: redis.gloo-mesh-addons:6379
+                allowRefreshing: true
+              cookieOptions:
+                maxAge: "90"
+            scopes:
+            - email
+            - profile
+            logoutPath: /logout
+            afterLogoutUrl: /get
+            headers:
+              idTokenHeader: Jwt
+          accessTokenValidation:
+            jwt:
+              remoteJwks:
+                url: ${JWKS_URI}
+                refreshInterval: 90s
+EOF
+```
 
-If you refresh the web page, you should see new `X-Email` and `X-Sub` headers have replaced our `jwt` header. Note that if you want to keep the `jwt` header and just extract the claims to new headers this is also possible.
+If you refresh the web page, you should see new `X-Email` and `X-Sub` headers have replaced our `jwt` header. (Note that if you want to keep the `jwt` header and just extract the claims to new headers this is also possible in Gloo Mesh 2.1)
 
 ## Lab 19 - Use the transformation filter to manipulate headers <a name="Lab-19"></a>
 Let's explore using the transformation filter again, this time we're going to use a regular expression to extract a part of an existing header and to create a new one:
