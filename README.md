@@ -2883,7 +2883,6 @@ kubectl --context ${MGMT} -n httpbin delete ExtAuthServer mgmt-ext-auth-server
 kubectl --context ${MGMT} -n httpbin delete configmap httpbin-opa
 
 # jwtpolicy
-kubectl --context ${MGMT} -n httpbin delete externalendpoint oidc-jwks
 kubectl --context ${MGMT} -n httpbin delete externalservice oidc-jwks
 kubectl --context ${MGMT} -n httpbin delete jwtpolicy httpbin
 
