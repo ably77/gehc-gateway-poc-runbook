@@ -2736,14 +2736,14 @@ EOF
 ```
 You can see that it will be applied to our existing route and also that we want to execute it after performing the external authentication (to have access to the JWT token).
 
-If you refresh the web page, you should see a new `org` header added to the request with the value `solo.io`!
+If you refresh the web page, you should see a new `org` header added to the request with the value `hc.ge.com`!
 
 ## Lab 20 - Implement OPA on new validated/transformed claims <a name="Lab-20"></a>
 Now that we have validated, extracted, and transformed our claims into the shape we want, we can also configure our OPA policies to simplify our workflow! 
 
 Note that the Lab 19 transformation is not required, you can configure your OPA policy directly on the header provided by `claimsToHeaders` (i.e. `X-Email` and `X-Sub`), but to build on top of our current example we will configure our OPA policy on the `org` header content
 
-Lets modify our existing OPA config, and intentionally introduce a violation where the `org` header value is `"solo.i"` instead of `"solo.io"`
+Lets modify our existing OPA config, and intentionally introduce a violation where the `org` header value is `"hc.ge.co"` instead of `"hc.ge.com"`
 ```bash
 kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: v1
@@ -2800,7 +2800,7 @@ spec:
           query: "data.ehs.allow == true"
 EOF
 ```
-As you can see, the above policy will fail with a `403` because our `org` header value is `"solo.io"` while the OPA policy is matching on `"solo.i"`
+As you can see, the above policy will fail with a `403` because our `org` header value is `"hc.ge.com"` while the OPA policy is matching on `"hc.ge.co"`
 
 Lets fix this:
 ```bash
