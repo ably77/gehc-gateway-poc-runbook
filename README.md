@@ -2711,7 +2711,7 @@ kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: trafficcontrol.policy.gloo.solo.io/v2
 kind: TransformationPolicy
 metadata:
-  name: modify-x-email-header
+  name: modify-x-sub-header
   namespace: httpbin
 spec:
   applyToRoutes:
@@ -2887,7 +2887,7 @@ kubectl --context ${MGMT} -n httpbin delete externalservice oidc-jwks
 kubectl --context ${MGMT} -n httpbin delete jwtpolicy httpbin
 
 # transformation
-kubectl --context ${MGMT} -n httpbin delete transformationpolicy modify-x-email-header
+kubectl --context ${MGMT} -n httpbin delete transformationpolicy modify-x-sub-header
 ```
 
 ## [Lab 21 - Route Table Delegation](#Lab-21)
