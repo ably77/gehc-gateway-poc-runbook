@@ -2726,7 +2726,7 @@ spec:
       injaTemplate:
         extractors:
           organization:
-            header: 'X-Email'
+            header: 'X-Sub'
             regex: '.*@(.*)$'
             subgroup: 1
         headers:
@@ -2762,7 +2762,7 @@ data:
              input.http_request.path == "/anything"
           })
         # these are headers provided by JWTPolicy and claimsToHeaders feature
-        any({input.http_request.headers.org == "solo.i"})
+        any({input.http_request.headers.org == "hc.ge.co"})
         any({input.http_request.method == "GET",
              input.http_request.method == "POST",
              input.http_request.method == "PUT",
@@ -2821,7 +2821,7 @@ data:
              input.http_request.path == "/anything"
           })
         # these are headers provided by JWTPolicy and claimsToHeaders feature
-        any({input.http_request.headers.org == "solo.io"})
+        any({input.http_request.headers.org == "hc.ge.com"})
         any({input.http_request.method == "GET",
              input.http_request.method == "POST",
              input.http_request.method == "PUT",
