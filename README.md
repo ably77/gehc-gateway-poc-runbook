@@ -464,6 +464,8 @@ helm upgrade --install gloo-mesh-enterprise gloo-mesh-enterprise/gloo-mesh-enter
 --version=2.1.0-beta27 \
 --values - <<EOF
 licenseKey: "${GLOO_MESH_LICENSE_KEY}"
+global:
+  cluster: mgmt
 mgmtClusterName: mgmt
 glooMeshMgmtServer:
   resources:
@@ -1992,6 +1994,8 @@ Save this as a values.yaml, keep the commented out sections as we may use those 
 ```bash
 cat <<EOF >>values.yaml
 licenseKey: ${GLOO_MESH_LICENSE_KEY}
+global:
+  cluster: mgmt
 mgmtClusterName: mgmt
 glooMeshMgmtServer:
   ports:
@@ -2184,6 +2188,8 @@ Let's save a new `values-oidc.yaml` to fill in the auth config that we have unco
 ```bash
 cat <<EOF >>values-oidc.yaml
 licenseKey: ${GLOO_MESH_LICENSE_KEY}
+global:
+  cluster: mgmt
 mgmtClusterName: mgmt
 glooMeshMgmtServer:
   ports:
