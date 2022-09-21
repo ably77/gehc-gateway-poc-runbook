@@ -194,15 +194,20 @@ gateways:
     serviceAnnotations:
       meta.helm.sh/release-name: istio-ingressgateway
       meta.helm.sh/release-namespace: istio-gateways
-      service.beta.kubernetes.io/aws-load-balancer-backend-protocol: TCP
-      service.beta.kubernetes.io/aws-load-balancer-healthcheck-healthy-threshold: "2"
-      service.beta.kubernetes.io/aws-load-balancer-healthcheck-interval: "10"
-      service.beta.kubernetes.io/aws-load-balancer-healthcheck-port: "15021"
-      service.beta.kubernetes.io/aws-load-balancer-healthcheck-protocol: tcp
-      service.beta.kubernetes.io/aws-load-balancer-healthcheck-unhealthy-threshold: "2"
+      # uncomment below if using NLB controller
+      #service.beta.kubernetes.io/aws-load-balancer-backend-protocol: TCP
+      #service.beta.kubernetes.io/aws-load-balancer-healthcheck-healthy-threshold: "2"
+      #service.beta.kubernetes.io/aws-load-balancer-healthcheck-interval: "10"
+      #service.beta.kubernetes.io/aws-load-balancer-healthcheck-port: "15021"
+      #service.beta.kubernetes.io/aws-load-balancer-healthcheck-protocol: tcp
+      #service.beta.kubernetes.io/aws-load-balancer-healthcheck-unhealthy-threshold: "2"
+      #service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+      #service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+      #service.beta.kubernetes.io/aws-load-balancer-type: nlb-ip
+      # uncomment below if using classic LB controller
+      service.beta.kubernetes.io/aws-load-balancer-type: external
       service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
       service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
-      service.beta.kubernetes.io/aws-load-balancer-type: external
 EOF
 ```
 
@@ -443,7 +448,7 @@ not-in-mesh-5c64bb49cd-m9kwm   1/1     Running   0          11s
 ### Install the meshctl CLI
 First of all, let's install the `meshctl` CLI which will provide us some added functionality for interacting with Gloo Mesh
 ```bash
-export GLOO_MESH_VERSION=v2.0.18
+export GLOO_MESH_VERSION=v2.1.0-beta27
 curl -sL https://run.solo.io/meshctl/install | sh -
 export PATH=$HOME/.gloo-mesh/bin:$PATH
 ```
@@ -456,7 +461,7 @@ helm repo update
 kubectl --context ${MGMT} create ns gloo-mesh 
 helm upgrade --install gloo-mesh-enterprise gloo-mesh-enterprise/gloo-mesh-enterprise \
 --namespace gloo-mesh --kube-context ${MGMT} \
---version=2.0.18 \
+--version=2.1.0-beta27 \
 --values - <<EOF
 licenseKey: "${GLOO_MESH_LICENSE_KEY}"
 mgmtClusterName: mgmt
@@ -551,7 +556,7 @@ helm upgrade --install gloo-mesh-agent gloo-mesh-agent/gloo-mesh-agent \
   --set rate-limiter.enabled=false \
   --set ext-auth-service.enabled=false \
   --set cluster=mgmt \
-  --version 2.0.18
+  --version 2.1.0-beta27
 ```
 
 Note that the registration can also be performed using `meshctl cluster register`.
@@ -628,7 +633,7 @@ helm upgrade --install gloo-mesh-agent-addons gloo-mesh-agent/gloo-mesh-agent \
   --set glooMeshAgent.enabled=false \
   --set rate-limiter.enabled=true \
   --set ext-auth-service.enabled=true \
-  --version 2.0.18
+  --version 2.1.0-beta27
 ```
 
 This is how the environment looks like now:
@@ -2009,7 +2014,7 @@ EOF
 
 Now upgrade Gloo Mesh
 ```bash
-helm --kube-context ${MGMT} upgrade --install gloo-mesh-enterprise gloo-mesh-enterprise/gloo-mesh-enterprise -n gloo-mesh --version=2.0.18 --values=values.yaml
+helm --kube-context ${MGMT} upgrade --install gloo-mesh-enterprise gloo-mesh-enterprise/gloo-mesh-enterprise -n gloo-mesh --version=2.1.0-beta27 --values=values.yaml
 ```
 
 Now that we have injected the gloo-mesh-ui with a sidecar, we should be able to see this reflected as `4/4` READY pods. If not just delete the pod so it re-deploys with one
@@ -2216,7 +2221,7 @@ EOF
 ### Update Gloo Mesh using Helm
 Now upgrade Gloo Mesh with our new `values-oidc.yaml` to pick up our new config
 ```bash
-helm --kube-context ${MGMT} upgrade --install gloo-mesh-enterprise gloo-mesh-enterprise/gloo-mesh-enterprise -n gloo-mesh --version=2.0.18 --values=values-oidc.yaml
+helm --kube-context ${MGMT} upgrade --install gloo-mesh-enterprise gloo-mesh-enterprise/gloo-mesh-enterprise -n gloo-mesh --version=2.1.0-beta27 --values=values-oidc.yaml
 ```
 
 Once configured, we should be able to access the Gloo Mesh UI and it should be now be protected by OIDC.
