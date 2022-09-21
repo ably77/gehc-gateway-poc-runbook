@@ -624,7 +624,6 @@ To use the Gloo Mesh Gateway advanced features (external authentication, rate li
 First, you need to create a namespace for the addons, with Istio injection enabled:
 ```bash
 kubectl --context ${MGMT} create namespace gloo-mesh-addons
-kubectl --context ${MGMT} label namespace gloo-mesh-addons istio.io/rev=1-13
 ```
 
 Then, you can deploy the addons on the cluster(s) using Helm:
@@ -2707,6 +2706,8 @@ spec:
           header: X-Email
         - claim: sub
           header: X-Sub
+        - claim: amr
+          header: X-Amr
 EOF
 ```
 You can see that the `applyToRoutes` is set to our existing routes where `oauth: "true"` but also that we want to execute it after performing the external authentication (to have access to the JWT token) by setting the priority to `priority: 1` (note that lower value has higher priority)
