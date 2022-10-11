@@ -1629,8 +1629,6 @@ kind: RouteTable
 metadata:
   name: httpbin
   namespace: httpbin
-  labels:
-    expose: "true"
 spec:
   hosts:
     - '*'
@@ -1920,8 +1918,6 @@ kind: ExternalService
 metadata:
   name: oidc-jwks
   namespace: httpbin
-  labels:
-    expose: "true"
 spec:
   hosts:
   - idam.gehealthcloud.io
@@ -2126,8 +2122,6 @@ kind: RouteTable
 metadata:
   name: httpbin
   namespace: httpbin
-  labels:
-    expose: "true"
 spec:
   hosts:
     - '*'
@@ -2193,8 +2187,6 @@ kind: RouteTable
 metadata:
   name: httpbin-root
   namespace: httpbin
-  labels:
-    expose: "true"
 spec:
   hosts:
     - '*'
@@ -2237,8 +2229,6 @@ kind: RouteTable
 metadata:
   name: httpbin-delegate1
   namespace: httpbin
-  labels:
-    expose: "true"
 spec:
   http:
     - name: httpbin-get
@@ -2273,8 +2263,6 @@ kind: RouteTable
 metadata:
   name: httpbin-delegate2
   namespace: httpbin
-  labels:
-    expose: "true"
 spec:
   http:
     - name: httpbin-anything
@@ -2446,8 +2434,6 @@ kind: ExternalService
 metadata:
   name: oidc-jwks
   namespace: httpbin
-  labels:
-    expose: "true"
 spec:
   hosts:
   - idam.gehealthcloud.io
@@ -2626,8 +2612,6 @@ kind: RouteTable
 metadata:
   name: httpbin
   namespace: httpbin
-  labels:
-    expose: "true"
 spec:
   hosts:
     - '*'
@@ -2664,8 +2648,6 @@ kind: Workspace
 metadata:
   name: applist
   namespace: gloo-mesh
-  labels:
-    allow_ingress: "true"
 spec:
   workloadClusters:
   - name: awdev1
@@ -2698,8 +2680,6 @@ kubectl apply --context ${MGMT} -f- <<EOF
 apiVersion: networking.gloo.solo.io/v2
 kind: RouteTable
 metadata:
-  labels:
-    expose: "true"
   name: applist-svc-rt
   namespace: aw
 spec:
@@ -2838,8 +2818,6 @@ kind: ExternalService
 metadata:
   name: aw-oidc-jwks
   namespace: aw
-  labels:
-    expose: "true"
 spec:
   hosts:
   - idam.gehealthcloud.io
@@ -2920,8 +2898,6 @@ kind: RouteTable
 metadata:
   name: applist-svc-root
   namespace: aw
-  labels:
-    expose: "true"
 spec:
   hosts:
     - '*'
@@ -2952,8 +2928,6 @@ kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: networking.gloo.solo.io/v2
 kind: RouteTable
 metadata:
-  labels:
-    expose: "true"
   name: applist-svc-rt-delegate
   namespace: aw
 spec:
@@ -3038,8 +3012,6 @@ kubectl apply --context ${MGMT} -f- <<EOF
 apiVersion: networking.gloo.solo.io/v2
 kind: RouteTable
 metadata:
-  labels:
-    expose: "true"
   name: gm-ui-rt-443
   namespace: gloo-mesh
 spec:
