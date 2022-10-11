@@ -1509,36 +1509,13 @@ In this step, we're going to secure the access to the `httpbin` service using OA
 ```
 - create app registration in your OIDC
 - configuring a Gloo Mesh `ExtAuthPolicy` and `ExtAuthServer`
-- configuring the `RouteTable` with a specified label (i.e. `oauth: "true"`)
-```
-
-### Provided Okta Credentials
-Starting a new Okta Developer Account is free and easy to use, but for the purposes of this runbook you can either modify the Okta specific parameters for your own IDAM setup, or if you would like you can also use the example as is. A test credential is provided below with the following users:
-```
-Username: jdoe@solo.io
-Password: gloomesh
-
-Username: jdoe@gmail.com
-Password: gloomesh1
-```
-
-### Modifying /etc/hosts
-If using the credentials above, the redirect URIs in Okta are set to the `httpbin-local.glootest.com` domain. To use this directly, it would be recommended to modify your `/etc/hosts` file with the following entry
-
-If using Cloud:
-```
-<LB IP Address> httpbin-local.glootest.com
-```
-
-If running locally (for example on k3d) with loadbalancer integration to localhost on 80/443:
-```
-127.0.0.1 localhost httpbin-local.glootest.com
+- configuring the `RouteTable` with a specified label (i.e. `route_name: "httpbin-all"`)
 ```
 
 ### In your OIDC Provider
 Once the app has been configured in the external OIDC, we need to create a Kubernetes Secret that contains the OIDC client-secret. Please provide this value input before running the command below:
 ```bash
-export HTTPBIN_CLIENT_SECRET="3cMS-DdmZH0UoHHRWgfWlNzHjTjty56DPaB66Mv2"
+export HTTPBIN_CLIENT_SECRET="<provide OIDC client secret here>"
 ```
 
 ```bash
@@ -1554,24 +1531,18 @@ data:
 EOF
 ```
 
-Set the callback URL in your OIDC provider to map to our httpbin app. If you are using the provided example set the `APP_CALLBACK_URL` to `https://httpbin-local.glootest.com`
-```
-export APP_CALLBACK_URL="https://httpbin-local.glootest.com"
-```
+Set the callback URL in your OIDC provider to map to our httpbin app
+```bash
+export APP_CALLBACK_URL="https://$(kubectl --context ${MGMT} -n istio-gateways get svc istio-ingressgateway -o jsonpath='{.status.loadBalancer.ingress[0].*}')"
 
->### If using your own OIDC Configuration
->If you are using your own OIDC configuration, the example below may help you discover and set your `APP_CALLBACK_URL` variable
->```bash
->export APP_CALLBACK_URL="https://$(kubectl --context ${MGMT} -n istio-gateways get svc istio-ingressgateway -o jsonpath='{.status.loadBalancer.ingress[0].*}')"
->
->echo $APP_CALLBACK_URL
->```
+echo $APP_CALLBACK_URL
+```
 
 Lastly, replace the `OICD_CLIENT_ID` and `ISSUER_URL` values below with your OIDC app settings, in a later lab we will also use the `JWKS_URI` endpoint so we can just set it now as well
 ```bash
-export OIDC_CLIENT_ID="0oa6qvzybcVCK6PcS5d7"
-export ISSUER_URL="https://dev-22653158.okta.com/oauth2/default"
-export JWKS_URI="https://dev-22653158.okta.com/oauth2/default/v1/keys/"
+export OIDC_CLIENT_ID="solo-poc-clientid"
+export ISSUER_URL="https://idam.gehealthcloud.io:443/t/solopocapp.group.app/oauth2/token"
+export JWKS_URI="https://idam.gehealthcloud.io:443/t/solopocapp.group.app/oauth2/jwks"
 ```
 
 Let's make sure our variables are set correctly:
@@ -1594,18 +1565,18 @@ spec:
   applyToRoutes:
   - route:
       labels:
-        oauth: "true"
+        route_name: "httpbin-all"
   config:
     server:
-      name: awdev1-ext-auth-server
+      name: appdev1-ext-auth-server
       namespace: httpbin
-      cluster: awdev1
+      cluster: appdev1
     glooAuth:
       configs:
       - oauth2:
           oidcAuthorizationCode:
             appUrl: ${APP_CALLBACK_URL}
-            callbackPath: /callback
+            callbackPath: /oidc-callback
             clientId: ${OIDC_CLIENT_ID}
             clientSecretRef:
               name: httpbin-oidc-client-secret
@@ -1614,7 +1585,7 @@ spec:
             session:
               failOnFetchFailure: true
               redis:
-                cookieName: oidc-session
+                cookieName: gehc-session
                 options:
                   host: redis.gloo-mesh-addons:6379
                 allowRefreshing: true
@@ -1657,6 +1628,8 @@ kind: RouteTable
 metadata:
   name: httpbin
   namespace: httpbin
+  labels:
+    expose: "true"
 spec:
   hosts:
     - '*'
@@ -1666,19 +1639,19 @@ spec:
       cluster: awdev1
   workloadSelectors: []
   http:
-    - name: httpbin
+    - name: httpbin-all
       labels:
-        oauth: "true"
-        validate_jwt: "true"
+        route_name: "httpbin-all"
         waf: "true"
         ratelimited: "true"
+        validate_jwt: "true"
       matchers:
       - uri:
           exact: /get
       - uri:
           prefix: /anything
       - uri:
-          prefix: /callback
+          prefix: /oidc-callback
       - uri:
           prefix: /logout
       forwardTo:
@@ -1691,7 +1664,7 @@ spec:
 EOF
 ```
 
-Now when you access your httpbin app through the browser, it will be protected by the OIDC provider login page. Login with the credentials provided above
+Now when you access your httpbin app through the browser, it will be protected by the OIDC provider login page
 ```
 echo "${APP_CALLBACK_URL}/get"
 ```
@@ -1705,12 +1678,12 @@ You can also perform authorization using OPA. Gloo Mesh's OPA integration popula
 - `input.state.jwt` - When the OIDC auth plugin is utilized, the token retrieved during the OIDC flow is placed into this field. 
 
 ## Lab
-In this lab, we will make use of the `input.http_request` parameter in our OPA policies to decode the `jwt` token retrieved in the last lab and create policies using the claims available, namely the `` and `email` claims.
+In this lab, we will make use of the `input.http_request` parameter in our OPA policies to decode the `jwt` token retrieved in the last lab and create policies using the claims available, namely the `sub` and `email` claims.
 
 Instead of coupling the `oauth2` config with the `opa` config in a single `ExtAuthPolicy`, here we will separate the app to decouple the APIs from apps
 
 ## High Level Workflow
-![Gloo Mesh Dashboard OIDC](images/runbook6a.png)
+![Gloo Mesh Dashboard OIDC](images/runbook9a.png)
 
 First we will create a new `ExtAuthPolicy` object to add the OPA filter. Note the use of the `applyToDestinations` in this `ExtAuthPolicy` instead of `applyToRoutes`. This matcher allows us to specify a destination where we want to apply our policy to, rather than on a Route. Note that the below uses a direct reference, but label matchers would work as well.
 
@@ -1746,8 +1719,6 @@ EOF
 ### Enforce @solo.io username login by inspecting the JWT email payload
 For our first use-case we will decode the JWT token passed through extauth for the `email` payload, and enforce that a user logging in must end with `@solo.io` as the username with OPA
 
-You will likely need to configure the expected outputs to the claims / values corresponding to your OIDC provider (i.e. using @org.com instead of @solo.io)
-
 First, you need to create a `ConfigMap` with the policy written in rego. 
 ```bash
 kubectl --context ${MGMT} apply -f - <<EOF
@@ -1775,15 +1746,12 @@ Now we should see success when logging in with a username that ends with `@solo.
 If you decode the JWT provided (using jwt.io for example), we can see other claims available
 ```
 {
-  "name": "jdoe",
-  "email": "jdoe@solo.io"
+  "sub": "alex.solo@hc.ge.com",
+  "email": "alex.ly@solo.io"
 }
 ```
 
-We can modify our rego rule to apply policy to map to `name` as well as `email` claims. 
-
-The rego rule below uses two `allow {` rules creates an `OR`. So in the below example, we are allowing the claim `email: @solo.i` OR `name: jdoe`. Note that we are intentionally setting `@solo.i` to show the OR functionality in this example. 
-
+We can modify our rego rule to apply policy to map to `sub` as well as `email` claims
 ```bash
 kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: v1
@@ -1799,14 +1767,16 @@ data:
 
     allow {
         [header, payload, signature] = io.jwt.decode(input.http_request.headers.jwt)
-        endswith(payload["email"], "@solo.i")
+        endswith(payload["email"], "@solo.io")
     }
     allow {
         [header, payload, signature] = io.jwt.decode(input.http_request.headers.jwt)
-        endswith(payload["name"], "jdoe")
+        endswith(payload["sub"], "@hc.ge.com")
     }
 EOF
 ```
+
+Now you should be able to access the app logging in with users that end in `@solo.io`, as well as `@hc.ge.com`
 
 ### Use OPA to enforce a specific HTTP method
 Let's continue to expand on our example by enforcing different HTTP methods for our two types of users
@@ -1833,7 +1803,7 @@ data:
     }
     allow {
         [header, payload, signature] = io.jwt.decode(input.http_request.headers.jwt)
-        endswith(payload["email"], "@gmail.com")
+        endswith(payload["sub"], "@hc.ge.com")
         any({input.http_request.method == "POST",
              input.http_request.method == "PUT",
              input.http_request.method == "DELETE",
@@ -1842,7 +1812,7 @@ data:
 EOF
 ```
 
-If you refresh the browser where the `@solo.io` or `@gmail.com` user is logged in, we should now see a `403 Error - You don't have authorization to view this page`. This is because we are not allowing the `GET` method for either of those matches in our OPA policy
+If you refresh the browser where the `@solo.io` or `@hc.ge.com` user is logged in, we should now see a `403 Error - You don't have authorization to view this page`. This is because we are not allowing the `GET` method for either of those matches in our OPA policy
 
 Let's fix that
 ```bash
@@ -1869,7 +1839,7 @@ data:
     }
     allow {
         [header, payload, signature] = io.jwt.decode(input.http_request.headers.jwt)
-        endswith(payload["email"], "@gmail.com")
+        endswith(payload["sub"], "@hc.ge.com")
         any({input.http_request.method == "GET",
              input.http_request.method == "POST",
              input.http_request.method == "PUT",
@@ -1884,7 +1854,7 @@ Now we should be able to access our app again.
 ### Enforce paths with OPA
 Let's continue to expand on our example by enforcing a specified path for our users
 
-Here we will modify our rego rule so that users with the `name` claim containing `@solo.io` can access the `/get` endpoint as well as any path with the prefix `/anything`, while users with the `email` claim containing `@gmail.com` can only access specifically the `/anything/protected` endpoint
+Here we will modify our rego rule so that users with the `sub` claim containing `@hc.ge.com` can access the `/get` endpoint as well as any path with the prefix `/anything`, while users with the `email` claim containing `@solo.io` can only access specifically the `/anything/protected` endpoint
 ```bash
 kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: v1
@@ -1900,7 +1870,7 @@ data:
 
     allow {
         [header, payload, signature] = io.jwt.decode(input.http_request.headers.jwt)
-        endswith(payload["email"], "@solo.io")
+        endswith(payload["sub"], "@hc.ge.com")
         any({input.http_request.path == "/get",
         startswith(input.http_request.path, "/anything")
     })
@@ -1912,7 +1882,7 @@ data:
     }
     allow {
         [header, payload, signature] = io.jwt.decode(input.http_request.headers.jwt)
-        endswith(payload["email"], "@gmail.com")
+        endswith(payload["email"], "@solo.io")
         input.http_request.path == "/anything/protected"
         any({input.http_request.method == "GET",
              input.http_request.method == "POST",
@@ -1922,9 +1892,9 @@ data:
     }
 EOF
 ```
-If you refresh the browser where the `@solo.io` user is logged in, we should be able to access the `/get` endpoint as well as any path with the prefix `/anything`. Try and access `/anything/foo` for example - it should work.
+If you refresh the browser where the `@hc.ge.com` user is logged in, we should be able to access the `/get` endpoint as well as any path with the prefix `/anything`. Try and access `/anything/foo` for example - it should work.
 
-If you refresh the browser where the `@gmail.com` user is logged in, we should now see a `403 Error - You don't have authorization to view this page` if you access anything other than the `/anything/protected` endpoint
+If you refresh the browser where the `@solo.io` user is logged in, we should now see a `403 Error - You don't have authorization to view this page` if you access anything other than the `/anything/protected` endpoint
 
 ### cleanup extauthpolicy for next labs
 In the next labs we will explore using `JWTPolicy` to extract validated claims into new arbitrary headers and configure our OPA to leverage them. For now, we can remove the `httpbin-opa` policy to validate behavior before reimplementing it.
@@ -1933,33 +1903,13 @@ kubectl --context ${MGMT} -n httpbin delete ExtAuthPolicy httpbin-opa
 ```
 
 ## Lab 13 - Use the JWT filter to create headers from claims <a name="Lab-13"></a>
-In this step, we're going to validate the JWT token and to create a new header from the `email` or `name` claim. By doing so, we can gain a few benefits:
-- Simplified OPA policies
+In this step, we're going to validate the JWT token and to create a new header from the `email` or `sub` claim. By doing so, we can gain a few benefits:
+- Simplified OPA policies (Lab 20)
 - JWT token doesn’t need to be passed along to backend and to OPA server (optional)            
 - JWT policy can do JWT token level validations upfront and then extract claims and pass them as arbitrary headers to the backend. Rego policies are then simpler and can deal with these validated headers for RBAC decisions rather than decoding them from JWT.
 
 ## High Level Workflow
-![Gloo Mesh Dashboard OIDC](images/runbook7a.png)
-
-JWKS endpoint is running outside of the Service Mesh, so we need to define an `ExternalEndpoint`. 
-```bash
-kubectl --context ${MGMT} apply -f - <<EOF
-apiVersion: networking.gloo.solo.io/v2
-kind: ExternalEndpoint
-metadata:
-  name: oidc-jwks
-  namespace: httpbin
-  labels:
-    host: oidc-jwks
-spec:
-  # This external endpoint identifies the host where Okta publishes the jwks_uri endpoint for my dev account
-  # See https://dev-22653158-admin.okta.com/oauth2/default/.well-known/oauth-authorization-server
-  address: dev-22653158.okta.com
-  ports:
-  - name: https
-    number: 443
-EOF
-```
+![Gloo Mesh Dashboard OIDC](images/runbook10a.png)
 
 JWKS endpoint is running outside of the Service Mesh, so we need to define an `ExternalService`. 
 ```bash
@@ -1969,16 +1919,16 @@ kind: ExternalService
 metadata:
   name: oidc-jwks
   namespace: httpbin
+  labels:
+    expose: "true"
 spec:
   hosts:
-  - oidc-jwks.external
+  - idam.gehealthcloud.io
   ports:
   - name: https
     number: 443
     protocol: HTTPS
     clientsideTls: {}
-  selector:
-    host: oidc-jwks
 EOF
 ```
 
@@ -2003,14 +1953,14 @@ spec:
       postAuthz:
         priority: 1
     providers:
-      okta:
-        issuer: https://dev-22653158.okta.com/oauth2/default
+      oidc:
+        issuer: "https://idam.gehealthcloud.io:443/t/solopocapp.group.app/oauth2/token"
         tokenSource:
           headers:
           - name: jwt
         remote:
-          # url grabbed from https://dev-22653158.okta.com/oauth2/default/.well-known/oauth-authorization-server
-          url: "https://dev-22653158.okta.com/oauth2/default/v1/keys/"
+          url: "https://idam.gehealthcloud.io:443/t/solopocapp.group.app/oauth2/jwks"
+          cacheDuration: 10m
           destinationRef:
             ref:
               name: oidc-jwks
@@ -2019,17 +1969,19 @@ spec:
             kind: EXTERNAL_SERVICE
             port: 
               number: 443
-          enableAsyncFetch: true
+          enableAsyncFetch: false
         claimsToHeaders:
         - claim: email
           header: X-Email
-        - claim: groups
-          header: X-Groups
+        - claim: sub
+          header: X-Sub
+        - claim: amr
+          header: X-Amr
 EOF
 ```
-You can see that the `applyToRoutes` is set to our existing routes where `validate_jwt: "true"` but also that we want to execute it after performing the external authentication (to have access to the JWT token) by setting the priority to `priority: 1` (note that lower value has higher priority)
+You can see that the `applyToRoutes` is set to our existing routes where `validate_jwt: true"` but also that we want to execute it after performing the external authentication (to have access to the JWT token) by setting the priority to `priority: 1` (note that lower value has higher priority)
 
-If you refresh the web page, you should see new `X-Email` and `X-Groups` headers have replaced our `jwt` header. (Note that if you want to keep the `jwt` header and just extract the claims to new headers this is also possible in Gloo Mesh 2.1)
+If you refresh the web page, you should see new `X-Email` and `X-Sub` headers have replaced our `jwt` header. (Note that if you want to keep the `jwt` header and just extract the claims to new headers this is also possible in Gloo Mesh 2.1)
 
 ## Lab 14 - Use the transformation filter to manipulate headers <a name="Lab-14"></a>
 Let's explore using the transformation filter again, this time we're going to use a regular expression to extract a part of an existing header and to create a new one:
@@ -2040,7 +1992,7 @@ kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: trafficcontrol.policy.gloo.solo.io/v2
 kind: TransformationPolicy
 metadata:
-  name: modify-x-email-header
+  name: modify-x-sub-header
   namespace: httpbin
 spec:
   applyToRoutes:
@@ -2055,7 +2007,7 @@ spec:
       injaTemplate:
         extractors:
           organization:
-            header: 'X-Email'
+            header: 'X-Sub'
             regex: '.*@(.*)$'
             subgroup: 1
         headers:
@@ -2065,14 +2017,14 @@ EOF
 ```
 You can see that it will be applied to our existing route and also that we want to execute it after performing the external authentication (to have access to the JWT token).
 
-If you refresh the web page, you should see a new `org` header added to the request with the value `solo.io`!
+If you refresh the web page, you should see a new `org` header added to the request with the value `hc.ge.com`!
 
 ## Lab 15 - Implement OPA on new validated/transformed claims <a name="Lab-15"></a>
 Now that we have validated, extracted, and transformed our claims into the shape we want, we can also configure our OPA policies to simplify our workflow! 
 
-Note that the Lab 19 transformation is not required, you can configure your OPA policy directly on the header provided by `claimsToHeaders` (i.e. `X-Email`), but to build on top of our current example we will configure our OPA policy on the `org` header content
+Note that the Lab 19 transformation is not required, you can configure your OPA policy directly on the header provided by `claimsToHeaders` (i.e. `X-Email` and `X-Sub`), but to build on top of our current example we will configure our OPA policy on the `org` header content
 
-Lets modify our existing OPA config, and intentionally introduce a violation where the `org` header value is `"solo.i"` instead of `"solo.io"`
+Lets modify our existing OPA config, and intentionally introduce a violation where the `org` header value is `"hc.ge.co"` instead of `"hc.ge.com"`
 ```bash
 kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: v1
@@ -2091,7 +2043,7 @@ data:
              input.http_request.path == "/anything"
           })
         # these are headers provided by JWTPolicy and claimsToHeaders feature
-        any({input.http_request.headers.org == "solo.i"})
+        any({input.http_request.headers.org == "hc.ge.co"})
         any({input.http_request.method == "GET",
              input.http_request.method == "POST",
              input.http_request.method == "PUT",
@@ -2129,7 +2081,7 @@ spec:
           query: "data.ehs.allow == true"
 EOF
 ```
-As you can see, the above policy will fail with a `403` because our `org` header value is `"solo.io"` while the OPA policy is matching on `"solo.i"`
+As you can see, the above policy will fail with a `403` because our `org` header value is `"hc.ge.com"` while the OPA policy is matching on `"hc.ge.co"`
 
 Lets fix this:
 ```bash
@@ -2150,7 +2102,7 @@ data:
              input.http_request.path == "/anything"
           })
         # these are headers provided by JWTPolicy and claimsToHeaders feature
-        any({input.http_request.headers.org == "solo.io"})
+        any({input.http_request.headers.org == "hc.ge.com"})
         any({input.http_request.method == "GET",
              input.http_request.method == "POST",
              input.http_request.method == "PUT",
@@ -2164,6 +2116,60 @@ As you can see, the above policy will allow a user with the validated claim head
 
 We have now demonstrated RBAC policy with OPA using validated claims provided by the `JWTPolicy`!
 
+### cleanup labs 16-20
+First let's apply the original `RouteTable` yaml:
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: networking.gloo.solo.io/v2
+kind: RouteTable
+metadata:
+  name: httpbin
+  namespace: httpbin
+  labels:
+    expose: "true"
+spec:
+  hosts:
+    - '*'
+  virtualGateways:
+    - name: north-south-gw-443
+      namespace: istio-gateways
+      cluster: awdev1
+  workloadSelectors: []
+  http:
+    - name: httpbin
+      matchers:
+      - uri:
+          exact: /get
+      - uri:
+          prefix: /anything
+      forwardTo:
+        destinations:
+        - ref:
+            name: in-mesh
+            namespace: httpbin
+          port:
+            number: 8000
+EOF
+```
+
+Lets clean up the OAuth policies we've created:
+```
+# extauth config
+kubectl --context ${MGMT} -n httpbin delete ExtAuthPolicy httpbin-extauth
+kubectl --context ${MGMT} -n httpbin delete ExtAuthPolicy httpbin-opa
+kubectl --context ${MGMT} -n httpbin delete secret httpbin-oidc-client-secret
+kubectl --context ${MGMT} -n httpbin delete ExtAuthServer awdev1-ext-auth-server
+
+# opa config
+kubectl --context ${MGMT} -n httpbin delete configmap httpbin-opa
+
+# jwtpolicy
+kubectl --context ${MGMT} -n httpbin delete externalservice oidc-jwks
+kubectl --context ${MGMT} -n httpbin delete jwtpolicy httpbin
+
+# transformation
+kubectl --context ${MGMT} -n httpbin delete transformationpolicy modify-x-sub-header
+
 ## [Lab 16 - Route Table Delegation](#Lab-16)
 
 See [Official Docs](https://docs.solo.io/gloo-mesh-enterprise/latest/routing/rt-delegation/)
@@ -2172,15 +2178,9 @@ As your Gloo Mesh environment grows in size and complexity, the number of routes
 
 Below is a basic example for Route Delegation using our `httpbin` app. take a look at the official docs for more examples and documentation
 
-Lets make sure to remove the current `httpbin` route and any of the existing `ExtAuthPolicy` and `JWTPolicy` artifacts
+Lets make sure to remove the current `httpbin` route
 ```
 kubectl --context ${MGMT} -n httpbin delete routetable httpbin
-
-kubectl --context ${MGMT} -n httpbin delete extauthpolicy httpbin-extauth
-
-kubectl --context ${MGMT} -n httpbin delete extauthpolicy httpbin-opa
-
-kubectl --context ${MGMT} -n httpbin delete jwtpolicy httpbin
 ```
 
 Then we will first deploy our `httpbin-root` RouteTable. This is where we define our domain. This root route table would typically be owned by the Gateway team and delegated to development teams
@@ -2189,8 +2189,10 @@ kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: networking.gloo.solo.io/v2
 kind: RouteTable
 metadata:
-  name: httpbin-rt-root
+  name: httpbin-root
   namespace: httpbin
+  labels:
+    expose: "true"
 spec:
   hosts:
     - '*'
@@ -2198,10 +2200,12 @@ spec:
     - name: north-south-gw-443
       namespace: istio-gateways
       cluster: awdev1
+  workloadSelectors: []
   http:
   - name: httpbin-get
     labels:
       route_name: "httpbin-get"
+      validate_jwt: "true"
     delegate:
       # Selects tables based on name
       routeTables:
@@ -2212,6 +2216,7 @@ spec:
   - name: httpbin-anything
     labels:
       route_name: "httpbin-anything"
+      validate_jwt: "true"
     delegate:
       # Selects tables based on name
       routeTables:
@@ -2230,6 +2235,8 @@ kind: RouteTable
 metadata:
   name: httpbin-delegate1
   namespace: httpbin
+  labels:
+    expose: "true"
 spec:
   http:
     - name: httpbin-get
@@ -2240,7 +2247,7 @@ spec:
       - uri:
           prefix: /get
       - uri:
-          prefix: /get/callback
+          prefix: /get/callback    
       forwardTo:
         destinations:
         - ref:
@@ -2264,6 +2271,8 @@ kind: RouteTable
 metadata:
   name: httpbin-delegate2
   namespace: httpbin
+  labels:
+    expose: "true"
 spec:
   http:
     - name: httpbin-anything
@@ -2284,9 +2293,8 @@ spec:
             number: 8000
 EOF
 ```
-Now you should be able to access the `/anything` endpoint.
 
-With route table delegation, an admin team can delegate a specified Host domain to application teams that may only manage a particular path such as `/get` or `/anything` in the example above
+Now you should be able to access the `/anything` endpoint.
 
 ## [Lab 17 - Apply ExtAuth to delegated routes](#Lab-17)
 Now that we have delegated the `/get` and `/anything` endpoints to two separate route tables each "team" can configure their own ExtAuth policy relative to their application endpoint
@@ -2312,7 +2320,7 @@ EOF
 
 And create the client secret if it doesn't exist already
 ```bash
-export HTTPBIN_CLIENT_SECRET="3cMS-DdmZH0UoHHRWgfWlNzHjTjty56DPaB66Mv2"
+export HTTPBIN_CLIENT_SECRET="<provide OIDC client secret here>"
 ```
 
 ```bash
@@ -2427,6 +2435,29 @@ EOF
 ```
 
 We can also now reapply our `JWTPolicy` and OPA `ExtAuthPolicy` from before to validate that they are working with the delegated route tables
+
+First we can reapply the ExternalService if it was cleaned up
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: networking.gloo.solo.io/v2
+kind: ExternalService
+metadata:
+  name: oidc-jwks
+  namespace: httpbin
+  labels:
+    expose: "true"
+spec:
+  hosts:
+  - idam.gehealthcloud.io
+  ports:
+  - name: https
+    number: 443
+    protocol: HTTPS
+    clientsideTls: {}
+EOF
+```
+
+Then we can reapply the JWTPolicy:
 ```bash
 kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: security.policy.gloo.solo.io/v2
@@ -2444,14 +2475,14 @@ spec:
       postAuthz:
         priority: 1
     providers:
-      okta:
-        issuer: https://dev-22653158.okta.com/oauth2/default
+      oidc:
+        issuer: "https://idam.gehealthcloud.io:443/t/solopocapp.group.app/oauth2/token"
         tokenSource:
           headers:
           - name: jwt
         remote:
-          # url grabbed from https://dev-22653158.okta.com/oauth2/default/.well-known/oauth-authorization-server
-          url: "https://dev-22653158.okta.com/oauth2/default/v1/keys/"
+          url: "https://idam.gehealthcloud.io:443/t/solopocapp.group.app/oauth2/jwks"
+          cacheDuration: 10m
           destinationRef:
             ref:
               name: oidc-jwks
@@ -2460,12 +2491,44 @@ spec:
             kind: EXTERNAL_SERVICE
             port: 
               number: 443
-          enableAsyncFetch: true
+          enableAsyncFetch: false
         claimsToHeaders:
         - claim: email
           header: X-Email
-        - claim: groups
-          header: X-Groups
+        - claim: sub
+          header: X-Sub
+        - claim: amr
+          header: X-Amr
+EOF
+```
+
+Re apply the transformation on `X-Sub` for our OPA policy if it was cleaned up
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: trafficcontrol.policy.gloo.solo.io/v2
+kind: TransformationPolicy
+metadata:
+  name: modify-x-sub-header
+  namespace: httpbin
+spec:
+  applyToRoutes:
+  - route:
+      labels:
+        validate_jwt: "true"
+  config:
+    phase:
+      postAuthz:
+        priority: 2
+    request:
+      injaTemplate:
+        extractors:
+          organization:
+            header: 'X-Sub'
+            regex: '.*@(.*)$'
+            subgroup: 1
+        headers:
+          org:
+            text: "{{ organization }}"
 EOF
 ```
 
@@ -2497,33 +2560,61 @@ spec:
 EOF
 ```
 
-### cleanup labs 11-17
-Lets clean up all of the routes and policies we have created
+Apply the OPA policy if it has been deleted:
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: httpbin-opa
+  namespace: httpbin
+data:
+  policy.rego: |-
+    package ehs
+
+    default allow = false
+
+    allow {
+        any({input.http_request.path == "/get",
+             input.http_request.path == "/anything"
+          })
+        # these are headers provided by JWTPolicy and claimsToHeaders feature
+        any({input.http_request.headers.org == "hc.ge.com"})
+        any({input.http_request.method == "GET",
+             input.http_request.method == "POST",
+             input.http_request.method == "PUT",
+             input.http_request.method == "DELETE"
+             })
+    }
+EOF
 ```
-# delete root and delegate route tables
-kubectl --context ${MGMT} -n httpbin delete routetable httpbin-rt-root
+
+### cleanup
+Lets clean up the artifacts we've created in this section:
+```
+# route tables
+kubectl --context ${MGMT} -n httpbin delete routetable httpbin-root
 kubectl --context ${MGMT} -n httpbin delete routetable httpbin-delegate1
 kubectl --context ${MGMT} -n httpbin delete routetable httpbin-delegate2
 
 # extauth config
-kubectl --context ${MGMT} -n httpbin delete ExtAuthPolicy httpbin-extauth
-kubectl --context ${MGMT} -n httpbin delete ExtAuthPolicy httpbin-get
 kubectl --context ${MGMT} -n httpbin delete ExtAuthPolicy httpbin-anything
+kubectl --context ${MGMT} -n httpbin delete ExtAuthPolicy httpbin-get
+kubectl --context ${MGMT} -n httpbin delete ExtAuthPolicy httpbin-opa
 kubectl --context ${MGMT} -n httpbin delete secret httpbin-oidc-client-secret
 kubectl --context ${MGMT} -n httpbin delete ExtAuthServer awdev1-ext-auth-server
 
 # opa config
-kubectl --context ${MGMT} -n httpbin delete ExtAuthPolicy httpbin-opa
 kubectl --context ${MGMT} -n httpbin delete configmap httpbin-opa
 
 # jwtpolicy
 kubectl --context ${MGMT} -n httpbin delete externalservice oidc-jwks
-kubectl --context ${MGMT} -n httpbin delete externalendpoint oidc-jwks
 kubectl --context ${MGMT} -n httpbin delete jwtpolicy httpbin
 
 # transformation
-kubectl --context ${MGMT} -n httpbin delete transformationpolicy modify-x-email-header
+kubectl --context ${MGMT} -n httpbin delete transformationpolicy modify-x-sub-header
 ```
+
 
 Then let's apply the original `RouteTable` yaml:
 ```bash
@@ -2533,6 +2624,8 @@ kind: RouteTable
 metadata:
   name: httpbin
   namespace: httpbin
+  labels:
+    expose: "true"
 spec:
   hosts:
     - '*'
@@ -2558,7 +2651,345 @@ spec:
 EOF
 ```
 
-## [Lab 18 - Access Logging](#Lab-18)
+## [Lab 18 - Applist Service](#Lab-18)
+Below we will go through the process of onboarding the Applist service in the `aw` namespace
+
+### create the applist workspace
+```bash
+kubectl apply --context ${MGMT} -f- <<EOF
+apiVersion: admin.gloo.solo.io/v2
+kind: Workspace
+metadata:
+  name: applist
+  namespace: gloo-mesh
+  labels:
+    allow_ingress: "true"
+spec:
+  workloadClusters:
+  - name: awdev1
+    namespaces:
+    - name: aw
+EOF
+```
+
+### create the applist workspacesettings
+```
+kubectl apply --context ${MGMT} -f- <<EOF
+apiVersion: admin.gloo.solo.io/v2
+kind: WorkspaceSettings
+metadata:
+  name: applist-workspacesettings
+  namespace: aw
+spec:
+  importFrom:
+  - workspaces:
+    - name: gateways
+  exportTo:
+  - workspaces:
+    - name: gateways
+EOF
+```
+
+### apply route table
+```bash
+kubectl apply --context ${MGMT} -f- <<EOF
+apiVersion: networking.gloo.solo.io/v2
+kind: RouteTable
+metadata:
+  labels:
+    expose: "true"
+  name: applist-svc-rt
+  namespace: aw
+spec:
+  hosts:
+  - '*'
+  http:
+  - name: applist-svc
+    labels: 
+      route_name: "applist-svc"
+      validate_jwt: "true"
+    matchers:
+    - uri:
+        prefix: /api/v1/echo/hi
+    - uri:
+        prefix: /api/v1/applications
+    - uri:
+        prefix: /oidc-callback
+    forwardTo:
+      destinations:
+      - port:
+          number: 80
+        ref:
+          name: applist-svc
+          namespace: aw
+  virtualGateways:
+  - cluster: awdev1
+    name: north-south-gw-443
+    namespace: istio-gateways
+  workloadSelectors: []
+EOF
+```
+
+You should now be able to access the applist-svc through the gateway.
+
+Get the URL to access the applist service using the following command:
+```
+echo "https://${ENDPOINT_HTTPS_GW_MGMT}/api/v1/echo/hi"
+```
+
+Note that if you try to access the `/api/v1/applications` endpoint it will return an error `Missing User info` because the user needs to be authenticated to access this endpoint.
+
+### apply extauth
+Similar to before, we will create a new secret that contains the oidc client secret, but in the `aw` namespace
+
+And create the client secret if it doesn't exist already
+```bash
+export AW_CLIENT_SECRET="<provide OIDC client secret here>"
+```
+
+then we can create the secret
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: aw-oidc-client-secret
+  namespace: aw
+type: extauth.solo.io/oauth
+data:
+  client-secret: $(echo -n ${AW_CLIENT_SECRET} | base64)
+EOF
+```
+
+configure the awdev1 extauthserver reference in the `aw` namespace
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: admin.gloo.solo.io/v2
+kind: ExtAuthServer
+metadata:
+  name: awdev1-ext-auth-server
+  namespace: aw
+spec:
+  destinationServer:
+    port:
+      name: grpc
+    ref:
+      cluster: awdev1
+      name: ext-auth-service
+      namespace: gloo-mesh-addons
+EOF
+```
+
+Now we will apply our exauthpolicy
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: security.policy.gloo.solo.io/v2
+kind: ExtAuthPolicy
+metadata:
+  name: applist-svc-extauth
+  namespace: aw
+spec:
+  applyToRoutes:
+  - route:
+      labels:
+        route_name: "applist-svc"
+  config:
+    glooAuth:
+      configs:
+      - oauth2:
+          oidcAuthorizationCode:
+            afterLogoutUrl: api/v1/applications
+            appUrl: https://k8s-istiogat-istioing-3baf0b90ff-36364ad95b59749e.elb.us-east-1.amazonaws.com
+            callbackPath: /oidc-callback
+            clientId: solo-poc-clientid
+            clientSecretRef:
+              name: aw-oidc-client-secret
+              namespace: aw
+            headers:
+              idTokenHeader: Jwt
+            issuerUrl: https://idam.gehealthcloud.io:443/t/solopocapp.group.app/oauth2/token
+            logoutPath: /logout
+            scopes:
+            - email
+            - profile
+            session:
+              cookieOptions:
+                maxAge: "90"
+              failOnFetchFailure: true
+              redis:
+                allowRefreshing: true
+                cookieName: gehc-session
+                options:
+                  host: redis.gloo-mesh-addons:6379
+    server:
+      cluster: awdev1
+      name: awdev1-ext-auth-server
+      namespace: aw
+EOF
+```
+
+Apply our ExternalService for our oidc endpoint
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: networking.gloo.solo.io/v2
+kind: ExternalService
+metadata:
+  name: aw-oidc-jwks
+  namespace: aw
+  labels:
+    expose: "true"
+spec:
+  hosts:
+  - idam.gehealthcloud.io
+  ports:
+  - name: https
+    number: 443
+    protocol: HTTPS
+    clientsideTls: {}
+EOF
+```
+
+
+And then our JWTPolicy:
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: security.policy.gloo.solo.io/v2
+kind: JWTPolicy
+metadata:
+  name: applist-svc
+  namespace: aw
+spec:
+  applyToRoutes:
+  - route:
+      labels:
+        validate_jwt: "true"
+  config:
+    phase:
+      postAuthz:
+        priority: 1
+    providers:
+      oidc:
+        claimsToHeaders:
+        - claim: email
+          header: X-User
+        - claim: email
+          header: OIDC_CLAIM_preferred_username
+        - claim: amr
+          header: X-Amr
+        issuer: https://idam.gehealthcloud.io:443/t/solopocapp.group.app/oauth2/token
+        remote:
+          cacheDuration: 10m
+          destinationRef:
+            kind: EXTERNAL_SERVICE
+            port:
+              number: 443
+            ref:
+              cluster: awdev1
+              name: aw-oidc-jwks
+              namespace: aw
+          enableAsyncFetch: false
+          url: https://idam.gehealthcloud.io:443/t/solopocapp.group.app/oauth2/jwks
+        tokenSource:
+          headers:
+          - name: jwt
+EOF
+```
+
+Get the URL to access the applist service using the following command:
+```
+echo "https://${ENDPOINT_HTTPS_GW_MGMT}/api/v1/applications"
+```
+
+Now if you access the `/api/v1/applications` endpoint with valid credentials we should see our error has been resolved. This is because we used the claims to headers feature to extract the `OIDC_CLAIM_preferred_username` that the app expects from the JWT token!
+
+## [Lab 19 - Applist Service With Delegation](#Lab-19)
+Now that we have our working example, lets break this down using delegations
+
+First let's clean up the current route table
+```
+kubectl --context ${MGMT} delete routetable applist-svc-rt -n aw
+```
+
+### Apply the root table
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: networking.gloo.solo.io/v2
+kind: RouteTable
+metadata:
+  name: applist-svc-root
+  namespace: aw
+  labels:
+    expose: "true"
+spec:
+  hosts:
+    - '*'
+  virtualGateways:
+    - name: north-south-gw-443
+      namespace: istio-gateways
+      cluster: awdev1
+  workloadSelectors: []
+  http:
+  # our IDAM callback redirect is currently set to <LB>/oidc-callback
+  - name: applist-svc
+    labels:
+      route_name: "applist-svc"
+      validate_jwt: "true"
+    delegate:
+      # Selects tables based on name
+      routeTables:
+        - name: applist-svc-rt-delegate
+          namespace: aw
+      # Delegates based on order of specificity
+      sortMethod: ROUTE_SPECIFICITY
+EOF
+```
+
+And then we can deploy the delegate route table:
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: networking.gloo.solo.io/v2
+kind: RouteTable
+metadata:
+  labels:
+    expose: "true"
+  name: applist-svc-rt-delegate
+  namespace: aw
+spec:
+  http:
+  - name: applist-svc
+    labels:
+      route_name: "applist-svc"
+      validate_jwt: "true"
+    matchers:
+    - uri:
+        prefix: api/v1/echo/
+    - uri:
+        prefix: api/v1/Reformat/type
+    - uri:
+        prefix: api/v1/launch-info
+    - uri:
+        prefix: api/v1/applications
+    - uri:
+        prefix: /oidc-callback
+    forwardTo:
+      destinations:
+      - port:
+          number: 80
+        ref:
+          name: applist-svc
+          namespace: aw
+          cluster: awdev1
+EOF
+```
+
+Get the URL to access the applist service using the following command:
+```
+echo "https://${ENDPOINT_HTTPS_GW_MGMT}/api/v1/applications"
+```
+
+Our route should now be working again with the same extauth configuration, except this time we have split up the route into a delegated route table!
+
+## [Lab 20 - Access Logging](#Lab-20)
 If you take a look back at [Lab 2 - Deploy Istio](#Lab-2) when deploying istiod we set the config
 ```
 meshConfig:
