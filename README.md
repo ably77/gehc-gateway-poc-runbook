@@ -2640,6 +2640,13 @@ EOF
 ## [Lab 18 - Applist Service](#Lab-18)
 Below we will go through the process of onboarding the Applist service in the `aw` namespace
 
+### create aw namespace
+If we haven't already, lets create the applist namespace with the Istio injection label set
+```
+kubectl --context ${MGMT} create namespace aw
+kubectl --context ${MGMT} label namespace aw istio.io/rev=1-13 --overwrite=true
+```
+
 ### create the applist workspace
 ```bash
 kubectl apply --context ${MGMT} -f- <<EOF
@@ -2657,7 +2664,7 @@ EOF
 ```
 
 ### create the applist workspacesettings
-```
+```bash
 kubectl apply --context ${MGMT} -f- <<EOF
 apiVersion: admin.gloo.solo.io/v2
 kind: WorkspaceSettings
