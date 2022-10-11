@@ -35,7 +35,8 @@ source ./scripts/assert.sh
 * [Lab 20 - Implement OPA on new validated/transformed claims](#Lab-20)
 * [Lab 21 - Route Table Delegation](#Lab-21)
 * [Lab 22 - Apply ExtAuth to delegated routes](#Lab-22)
-* [Lab 23 - Access Logging](#Lab-23)
+* [Lab 23 - Applist Service](#Lab-22)
+* [Lab 24 - Access Logging](#Lab-24)
 
 
 ## Introduction to Gloo Mesh <a name="introduction"></a>
@@ -3384,46 +3385,7 @@ spec:
 EOF
 ```
 
-## [Lab 23 - Access Logging](#Lab-23)
-If you take a look back at [Lab 2 - Deploy Istio](#Lab-2) when deploying istiod we set the config
-```
-meshConfig:
-  trustDomain: mgmt
-  accessLogFile: /dev/stdout
-```
-By setting this config, we have already enabled Istio access logging for workloads in our mesh.
-
-You can see the access logs printed in stdout if you take a look at the logs of your ingress gateway pod for example
-```
-kubectl --context ${MGMT} logs -n istio-gateways istio-ingressgateway-57866754f6-7mljt
-```
-
-The output should show the [default access log format](https://istio.io/latest/docs/tasks/observability/logs/access-log/#default-access-log-format)
-```
-[%START_TIME%] \"%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%\" %RESPONSE_CODE% %RESPONSE_FLAGS% %RESPONSE_CODE_DETAILS% %CONNECTION_TERMINATION_DETAILS%
-\"%UPSTREAM_TRANSPORT_FAILURE_REASON%\" %BYTES_RECEIVED% %BYTES_SENT% %DURATION% %RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)% \"%REQ(X-FORWARDED-FOR)%\" \"%REQ(USER-AGENT)%\" \"%REQ(X-REQUEST-ID)%\"
-\"%REQ(:AUTHORITY)%\" \"%UPSTREAM_HOST%\" %UPSTREAM_CLUSTER% %UPSTREAM_LOCAL_ADDRESS% %DOWNSTREAM_LOCAL_ADDRESS% %DOWNSTREAM_REMOTE_ADDRESS% %REQUESTED_SERVER_NAME% %ROUTE_NAME%\n
-```
-
-For example:
-```
-[2022-07-11T20:49:36.292Z] "GET /callback?code=72S_sRhA8PNvZr_8qXHS0_W8gAcBTFaWq9z67OkX5IM&state=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2NTc1NzQzNjksImlhdCI6MTY1NzU3MjU2OSwic3RhdGUiOiJodHRwczovL2h0dHBiaW4uZ2xvb3Rlc3QuY29tL2dldCJ9.aly6iawiNcEiRZTx_9zTr27Q8V4Hwk1Ra13ytwGETF4 HTTP/2" 302 UAEX ext_authz_denied - "-" 0 0 636 - "10.48.0.1" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36" "ab2f16e7-f683-4872-a58f-980718a63acd" "httpbin.glootest.com" "-" outbound|8000||in-mesh.httpbin.svc.cluster.local - 10.48.0.24:8443 10.48.0.1:50586 httpbin.glootest.com -
-[2022-07-11T20:49:37.000Z] "GET /get HTTP/2" 200 - via_upstream - "-" 0 2465 7 2 "10.48.0.1" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36" "e8aa64cd-2695-4e27-9e53-6ba2b2b5a9b4" "httpbin.glootest.com" "10.48.0.25:80" outbound|8000||in-mesh.httpbin.svc.cluster.local 10.48.0.24:37316 10.48.0.24:8443 10.48.0.1:50586 httpbin.glootest.com httpbin-httpbin
-```
-
-You can also view the access logs from each application sidecar
-```
-kubectl logs -n httpbin in-mesh-6cff8c4dbd-ks22g -c istio-proxy -f
-```
-
-Example output:
-```
-[2022-07-11T20:53:27.509Z] "GET /get HTTP/1.1" 200 - via_upstream - "-" 0 2459 2 2 "10.48.0.1" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36" "60e89013-66c7-45a9-98f8-4a46b1b674cc" "httpbin.glootest.com" "10.48.0.25:80" inbound|80|| 127.0.0.6:57255 10.48.0.25:80 10.48.0.1:0 outbound_.8000_._.in-mesh.httpbin.svc.cluster.local default
-```
-
-This access log output can be sent to log collectors such as fluentd and then shipped to your favorite enterprise logging service such as Datadog or Splunk
-
-## [Lab 24 - Applist Service](#Lab-24)
+## [Lab 23 - Applist Service](#Lab-23)
 Below we will go through the process of onboarding the Applist service in the `aw` namespace
 
 ### create the applist workspace
@@ -3748,3 +3710,42 @@ spec:
           cluster: mgmt
 EOF
 ```
+
+## [Lab 24 - Access Logging](#Lab-24)
+If you take a look back at [Lab 2 - Deploy Istio](#Lab-2) when deploying istiod we set the config
+```
+meshConfig:
+  trustDomain: mgmt
+  accessLogFile: /dev/stdout
+```
+By setting this config, we have already enabled Istio access logging for workloads in our mesh.
+
+You can see the access logs printed in stdout if you take a look at the logs of your ingress gateway pod for example
+```
+kubectl --context ${MGMT} logs -n istio-gateways istio-ingressgateway-57866754f6-7mljt
+```
+
+The output should show the [default access log format](https://istio.io/latest/docs/tasks/observability/logs/access-log/#default-access-log-format)
+```
+[%START_TIME%] \"%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%\" %RESPONSE_CODE% %RESPONSE_FLAGS% %RESPONSE_CODE_DETAILS% %CONNECTION_TERMINATION_DETAILS%
+\"%UPSTREAM_TRANSPORT_FAILURE_REASON%\" %BYTES_RECEIVED% %BYTES_SENT% %DURATION% %RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)% \"%REQ(X-FORWARDED-FOR)%\" \"%REQ(USER-AGENT)%\" \"%REQ(X-REQUEST-ID)%\"
+\"%REQ(:AUTHORITY)%\" \"%UPSTREAM_HOST%\" %UPSTREAM_CLUSTER% %UPSTREAM_LOCAL_ADDRESS% %DOWNSTREAM_LOCAL_ADDRESS% %DOWNSTREAM_REMOTE_ADDRESS% %REQUESTED_SERVER_NAME% %ROUTE_NAME%\n
+```
+
+For example:
+```
+[2022-07-11T20:49:36.292Z] "GET /callback?code=72S_sRhA8PNvZr_8qXHS0_W8gAcBTFaWq9z67OkX5IM&state=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2NTc1NzQzNjksImlhdCI6MTY1NzU3MjU2OSwic3RhdGUiOiJodHRwczovL2h0dHBiaW4uZ2xvb3Rlc3QuY29tL2dldCJ9.aly6iawiNcEiRZTx_9zTr27Q8V4Hwk1Ra13ytwGETF4 HTTP/2" 302 UAEX ext_authz_denied - "-" 0 0 636 - "10.48.0.1" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36" "ab2f16e7-f683-4872-a58f-980718a63acd" "httpbin.glootest.com" "-" outbound|8000||in-mesh.httpbin.svc.cluster.local - 10.48.0.24:8443 10.48.0.1:50586 httpbin.glootest.com -
+[2022-07-11T20:49:37.000Z] "GET /get HTTP/2" 200 - via_upstream - "-" 0 2465 7 2 "10.48.0.1" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36" "e8aa64cd-2695-4e27-9e53-6ba2b2b5a9b4" "httpbin.glootest.com" "10.48.0.25:80" outbound|8000||in-mesh.httpbin.svc.cluster.local 10.48.0.24:37316 10.48.0.24:8443 10.48.0.1:50586 httpbin.glootest.com httpbin-httpbin
+```
+
+You can also view the access logs from each application sidecar
+```
+kubectl logs -n httpbin in-mesh-6cff8c4dbd-ks22g -c istio-proxy -f
+```
+
+Example output:
+```
+[2022-07-11T20:53:27.509Z] "GET /get HTTP/1.1" 200 - via_upstream - "-" 0 2459 2 2 "10.48.0.1" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36" "60e89013-66c7-45a9-98f8-4a46b1b674cc" "httpbin.glootest.com" "10.48.0.25:80" inbound|80|| 127.0.0.6:57255 10.48.0.25:80 10.48.0.1:0 outbound_.8000_._.in-mesh.httpbin.svc.cluster.local default
+```
+
+This access log output can be sent to log collectors such as fluentd and then shipped to your favorite enterprise logging service such as Datadog or Splunk
