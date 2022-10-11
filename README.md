@@ -236,7 +236,7 @@ echo $ENDPOINT_HTTP_GW_MGMT
 echo $ENDPOINT_HTTPS_GW_MGMT
 ```
 
-> ### Deploying an east/west gateway
+> ### Deploying an east/west gateway (optional)
 > Since we are only using one cluster in this workshop, there is no need for us to deploy an Istio Ingressgateway to serve east/west traffic for cross-cluster communication. But just for completeness the helm command is provided below
 > 
 > ```
@@ -2674,10 +2674,10 @@ metadata:
 spec:
   importFrom:
   - workspaces:
-    - name: gateways
+    - name: ops-team
   exportTo:
   - workspaces:
-    - name: gateways
+    - name: ops-team
 EOF
 ```
 
