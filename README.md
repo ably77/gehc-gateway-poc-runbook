@@ -2376,6 +2376,7 @@ spec:
         route_name: "httpbin-all"
         waf: "true"
         ratelimited: "true"
+        validate_jwt: "true"
       matchers:
       - uri:
           exact: /get
