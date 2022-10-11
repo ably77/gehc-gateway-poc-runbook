@@ -3168,6 +3168,29 @@ EOF
 ```
 
 We can also now reapply our `JWTPolicy` and OPA `ExtAuthPolicy` from before to validate that they are working with the delegated route tables
+
+First we can reapply the ExternalService if it was cleaned up
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: networking.gloo.solo.io/v2
+kind: ExternalService
+metadata:
+  name: oidc-jwks
+  namespace: httpbin
+  labels:
+    expose: "true"
+spec:
+  hosts:
+  - idam.gehealthcloud.io
+  ports:
+  - name: https
+    number: 443
+    protocol: HTTPS
+    clientsideTls: {}
+EOF
+```
+
+Then we can reapply the JWTPolicy:
 ```bash
 kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: security.policy.gloo.solo.io/v2
@@ -3399,3 +3422,249 @@ Example output:
 ```
 
 This access log output can be sent to log collectors such as fluentd and then shipped to your favorite enterprise logging service such as Datadog or Splunk
+
+## [Lab 24 - Applist Service](#Lab-24)
+Below we will go through the process of onboarding the Applist service in the `aw` namespace
+
+### create the applist workspace
+```bash
+kubectl apply --context ${MGMT} -f- <<EOF
+apiVersion: admin.gloo.solo.io/v2
+kind: Workspace
+metadata:
+  name: applist
+  namespace: gloo-mesh
+  labels:
+    allow_ingress: "true"
+spec:
+  workloadClusters:
+  - name: mgmt
+    namespaces:
+    - name: aw
+EOF
+```
+
+### create the applist workspacesettings
+```
+kubectl apply --context ${MGMT} -f- <<EOF
+apiVersion: admin.gloo.solo.io/v2
+kind: WorkspaceSettings
+metadata:
+  name: applist-workspacesettings
+  namespace: aw
+spec:
+  importFrom:
+  - workspaces:
+    - name: gateways
+  exportTo:
+  - workspaces:
+    - name: gateways
+EOF
+```
+
+### apply route table
+```bash
+kubectl apply --context ${MGMT} -f- <<EOF
+apiVersion: networking.gloo.solo.io/v2
+kind: RouteTable
+metadata:
+  labels:
+    expose: "true"
+  name: applist-svc-rt
+  namespace: aw
+spec:
+  hosts:
+  - '*'
+  http:
+  - name: applist-svc
+    labels: 
+      route_name: "applist-svc"
+      validate_jwt: "true"
+    matchers:
+    - uri:
+        prefix: /api/v1/echo/hi
+    - uri:
+        prefix: /api/v1/applications
+    - uri:
+        prefix: /oidc-callback
+    forwardTo:
+      destinations:
+      - port:
+          number: 80
+        ref:
+          name: applist-svc
+          namespace: aw
+  virtualGateways:
+  - cluster: mgmt
+    name: north-south-gw-443
+    namespace: istio-gateways
+  workloadSelectors: []
+EOF
+```
+
+You should now be able to access the applist-svc through the gateway.
+
+Get the URL to access the applist service using the following command:
+```
+echo "https://${ENDPOINT_HTTPS_GW_MGMT}/api/v1/echo/hi"
+```
+
+Note that if you try to access the `/api/v1/applications` endpoint it will return an error `Missing User info` because the user needs to be authenticated to access this endpoint.
+
+### apply extauth
+Similar to before, we will create a new secret that contains the oidc client secret, but in the `aw` namespace
+
+And create the client secret if it doesn't exist already
+```bash
+export AW_CLIENT_SECRET="<provide OIDC client secret here>"
+```
+
+then we can create the secret
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: aw-oidc-client-secret
+  namespace: aw
+type: extauth.solo.io/oauth
+data:
+  client-secret: $(echo -n ${AW_CLIENT_SECRET} | base64)
+EOF
+```
+
+configure the mgmt extauthserver reference in the `aw` namespace
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: admin.gloo.solo.io/v2
+kind: ExtAuthServer
+metadata:
+  name: mgmt-ext-auth-server
+  namespace: aw
+spec:
+  destinationServer:
+    port:
+      name: grpc
+    ref:
+      cluster: mgmt
+      name: ext-auth-service
+      namespace: gloo-mesh-addons
+EOF
+```
+
+Now we will apply our exauthpolicy
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: security.policy.gloo.solo.io/v2
+kind: ExtAuthPolicy
+metadata:
+  name: applist-svc-extauth
+  namespace: aw
+spec:
+  applyToRoutes:
+  - route:
+      labels:
+        route_name: "applist-svc"
+  config:
+    glooAuth:
+      configs:
+      - oauth2:
+          oidcAuthorizationCode:
+            afterLogoutUrl: api/v1/applications
+            appUrl: https://k8s-istiogat-istioing-3baf0b90ff-36364ad95b59749e.elb.us-east-1.amazonaws.com
+            callbackPath: /oidc-callback
+            clientId: solo-poc-clientid
+            clientSecretRef:
+              name: aw-oidc-client-secret
+              namespace: aw
+            headers:
+              idTokenHeader: Jwt
+            issuerUrl: https://idam.gehealthcloud.io:443/t/solopocapp.group.app/oauth2/token
+            logoutPath: /logout
+            scopes:
+            - email
+            - profile
+            session:
+              cookieOptions:
+                maxAge: "90"
+              failOnFetchFailure: true
+              redis:
+                allowRefreshing: true
+                cookieName: gehc-session
+                options:
+                  host: redis.gloo-mesh-addons:6379
+    server:
+      cluster: mgmt
+      name: mgmt-ext-auth-server
+      namespace: aw
+EOF
+```
+
+Apply our ExternalService for our oidc endpoint
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: networking.gloo.solo.io/v2
+kind: ExternalService
+metadata:
+  name: aw-oidc-jwks
+  namespace: aw
+  labels:
+    expose: "true"
+spec:
+  hosts:
+  - idam.gehealthcloud.io
+  ports:
+  - name: https
+    number: 443
+    protocol: HTTPS
+    clientsideTls: {}
+EOF
+```
+
+
+And then our JWTPolicy:
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: security.policy.gloo.solo.io/v2
+kind: JWTPolicy
+metadata:
+  name: applist-svc
+  namespace: aw
+spec:
+  applyToRoutes:
+  - route:
+      labels:
+        validate_jwt: "true"
+  config:
+    phase:
+      postAuthz:
+        priority: 1
+    providers:
+      oidc:
+        claimsToHeaders:
+        - claim: email
+          header: X-User
+        - claim: email
+          header: OIDC_CLAIM_preferred_username
+        - claim: amr
+          header: X-Amr
+        issuer: https://idam.gehealthcloud.io:443/t/solopocapp.group.app/oauth2/token
+        remote:
+          cacheDuration: 10m
+          destinationRef:
+            kind: EXTERNAL_SERVICE
+            port:
+              number: 443
+            ref:
+              cluster: mgmt
+              name: aw-oidc-jwks
+              namespace: aw
+          enableAsyncFetch: false
+          url: https://idam.gehealthcloud.io:443/t/solopocapp.group.app/oauth2/jwks
+        tokenSource:
+          headers:
+          - name: jwt
+EOF
+```
+
+Now if you access the `/api/v1/applications` endpoint with valid credentials we should see our error has been resolved. This is because we used the claims to headers feature to extract the `OIDC_CLAIM_preferred_username` that the app expects from the JWT token!
