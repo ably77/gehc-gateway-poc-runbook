@@ -831,7 +831,9 @@ spec:
       - uri:
           exact: /productpage
       - uri:
-          prefix: /static
+          prefix: /static/bootstrap/
+      - uri:
+          regex: /static/jquery*
       - uri:
           exact: /login
       - uri:
@@ -1950,11 +1952,13 @@ spec:
     - uri:
         exact: /welcome
     - uri:
-        prefix: /static
+        prefix: /static/js
+    - uri:
+        prefix: /static/media
     - uri:
         prefix: /login
     - uri:
-        prefix: /rpc
+        regex: /rpc.gloo.solo.io.*
     - uri:
         prefix: /workspace
     - uri:
