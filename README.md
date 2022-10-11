@@ -30,8 +30,8 @@ source ./scripts/assert.sh
 * [Lab 15 - Implement OPA on new validated/transformed claims](#Lab-15)
 * [Lab 16 - Route Table Delegation](#Lab-16)
 * [Lab 17 - Apply ExtAuth to delegated routes](#Lab-17)
-* [Lab 18 - Applist Service](#Lab-18)
-* [Lab 19 - Applist Service With Delegation](#Lab-19)
+* [Lab 18 - Applist Service with IDAM Integration](#Lab-18)
+* [Lab 19 - Split Applist Route using Delegations](#Lab-19)
 * [Lab 20 - Access Logging](#Lab-20)
 
 
@@ -2022,7 +2022,7 @@ If you refresh the web page, you should see a new `org` header added to the requ
 ## Lab 15 - Implement OPA on new validated/transformed claims <a name="Lab-15"></a>
 Now that we have validated, extracted, and transformed our claims into the shape we want, we can also configure our OPA policies to simplify our workflow! 
 
-Note that the Lab 19 transformation is not required, you can configure your OPA policy directly on the header provided by `claimsToHeaders` (i.e. `X-Email` and `X-Sub`), but to build on top of our current example we will configure our OPA policy on the `org` header content
+Note that the transformation is not required, you can configure your OPA policy directly on the header provided by `claimsToHeaders` (i.e. `X-Email` and `X-Sub`), but to build on top of our current example we will configure our OPA policy on the `org` header content
 
 Lets modify our existing OPA config, and intentionally introduce a violation where the `org` header value is `"hc.ge.co"` instead of `"hc.ge.com"`
 ```bash
@@ -2640,7 +2640,7 @@ spec:
 EOF
 ```
 
-## [Lab 18 - Applist Service](#Lab-18)
+## [Lab 18 - Applist Service with IDAM Integration](#Lab-18)
 Below we will go through the process of onboarding the Applist service in the `aw` namespace
 
 ### create aw namespace
@@ -2892,7 +2892,7 @@ echo "https://${ENDPOINT_HTTPS_GW_MGMT}/api/v1/applications"
 
 Now if you access the `/api/v1/applications` endpoint with valid credentials we should see our error has been resolved. This is because we used the claims to headers feature to extract the `OIDC_CLAIM_preferred_username` that the app expects from the JWT token!
 
-## [Lab 19 - Applist Service With Delegation](#Lab-19)
+## [Lab 19 - Split Applist Route using Delegations](#Lab-19)
 Now that we have our working example, lets break this down using delegations
 
 First let's clean up the current route table
