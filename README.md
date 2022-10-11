@@ -647,140 +647,60 @@ This is how the environment looks like now:
 ## Lab 5 - Create Gloo Mesh Workspaces <a name="Lab-5"></a>
 Gloo Mesh introduces a new concept, the Workspace custom resource. A workspace consists of one or more Kubernetes namespaces that are in one or more clusters. Think of a workspace as the boundary of your team's resources. To get started, create a workspace for each of your teams. Your teams might start with their apps in a couple Kubernetes namespaces in a single cluster. As your teams scale across namespaces and clusters, their workspaces scale with them
 
-> ### Setting a Wildcard Workspace
-> The lab example below is provided to demonstrate the Workspaces concept and how it can provide strict multitenancy controls within the cluster as well as across multiple clusters. If you were to prefer starting with a wide-open `wildcard` workspace it is also possible with the config below.
-> 
->```
->apiVersion: admin.gloo.solo.io/v2
->kind: Workspace
->metadata:
->  name: wildcard
->  namespace: gloo-mesh
->spec:
->  workloadClusters:
->  - name: '*'
->    namespaces:
->    - name: '*'
->---
->apiVersion: admin.gloo.solo.io/v2
->kind: WorkspaceSettings
->metadata:
->  name: wildcard
->  namespace: gloo-mesh
->spec:
->  exportTo:
->  - workspaces:
->    - name: '*'
->  importFrom:
->  - workspaces:
->    - name: '*'
->```
->
-> **Note: If you have decided to go with a wildcard workspace for your cluster, you can skip forward to Lab 6**
+This workshop will be following guidance from this blog post for reference (https://github.com/solo-io/solo-cop/tree/main/blogs/workspaces)
 
-### Create the admin Workspace
-First we are going to create a new workspace that we will name the Admin Workspace. In this workspace we will put management tools such as the gloo-mesh namespace (or in future tools like argocd, for example)
+### Create the ops-team workspace and workspacesettings
+First we are going to create a new workspace that we will name the ops-team workspace and workspacesettings. For testing purposes, in our setup the ops-team which owns the gateways has decided to provide a wide-open stance for import/export of services to be exposed outside of the cluster
+```bash
+kubectl --context ${MGMT} create namespace ops-team-config
 
-Next we're going to create a workspace for the team in charge of the Gloo Mesh platform which corresponds to the `gloo-mesh` namespace on the cluster(s):
-```
 kubectl apply --context ${MGMT} -f- <<EOF
 apiVersion: admin.gloo.solo.io/v2
 kind: Workspace
 metadata:
-  labels:
-    allow_ingress: "true"
-  name: admin-workspace
+  name: ops-team
   namespace: gloo-mesh
 spec:
   workloadClusters:
-  - name: mgmt
+  - name: 'mgmt'               # mgmt plane gloo mesh config namespace
     namespaces:
+    - name: ops-team-config
     - name: gloo-mesh
+  - name: '*'                  # gloo mesh addons and gateways namespaces
+    namespaces:
+    - name: istio-gateways
+    - name: gloo-mesh-addons
 ---
 apiVersion: admin.gloo.solo.io/v2
 kind: WorkspaceSettings
 metadata:
-  name: admin-workspace-settings
-  namespace: gloo-mesh
+  name: ops-team
+  namespace: ops-team-config
 spec:
   exportTo:
-  - resources:
-    - kind: ALL
-      labels:
-        expose: "true"
+  - workspaces:                      # export services and VD from istio-gateways and gloo-mesh-addons to all workspaces
+    - name: "*"
+    resources:
     - kind: SERVICE
-      labels:
-        app: gloo-mesh-ui
-    workspaces:
-    workspaces:
-    - name: gateways
-  importFrom:
-  - resources:
+      namespace: gloo-mesh-addons
     - kind: SERVICE
-    workspaces:
-    - name: gateways
+      namespace: istio-gateways
+    - kind: VIRTUAL_DESTINATION
+      namespace: gloo-mesh-addons
+  importFrom:                        # import destinations from all workspaces
+  - workspaces:
+    - name: '*'
   options:
-    federation:
+    federation:                     
       enabled: true
       hostSuffix: global
+      serviceSelector:               # federate only the gloo-mesh-addons
+      - namespace: gloo-mesh-addons  
 EOF
 ```
 
-The Gloo Mesh admin team has decided to export the following to the `gateway` workspace (using a reference):
-- the `gloo-mesh-ui` Kubernetes service
-- all the resources (RouteTables, VirtualDestination, ...) that have the label `expose` set to `true`
-
-### Create the Gateways Workspace
-Next we're going to create a workspace for the team in charge of the Gateways which corresponds to the `istio-gateways` and the `gloo-mesh-addons` namespaces on the cluster(s):
-```bash
-kubectl apply --context ${MGMT} -f- <<EOF
-apiVersion: admin.gloo.solo.io/v2
-kind: Workspace
-metadata:
-  name: gateways
-  namespace: gloo-mesh
-spec:
-  workloadClusters:
-  - name: mgmt
-    namespaces:
-    - name: istio-gateways
-    - name: gloo-mesh-addons
-EOF
-```
-
-Then, the Gateway team creates a `WorkspaceSettings` Kubernetes object in one of the namespaces of the `gateways` workspace (so the `istio-gateways` or the `gloo-mesh-addons` namespace):
-```bash
-kubectl apply --context ${MGMT} -f- <<EOF
-apiVersion: admin.gloo.solo.io/v2
-kind: WorkspaceSettings
-metadata:
-  name: gateways
-  namespace: istio-gateways
-spec:
-  importFrom:
-  - workspaces:
-    - selector:
-        allow_ingress: "true"
-    resources:
-    - kind: SERVICE
-    - kind: ALL
-      labels:
-        expose: "true"
-  exportTo:
-  - workspaces:
-    - selector:
-        allow_ingress: "true"
-    resources:
-    - kind: SERVICE
-EOF
-```
-
-The Gateway team has decided to import the following from the workspaces that have the label `allow_ingress` set to `true` (using a selector):
-- all the Kubernetes services exported by these workspaces
-- all the resources (RouteTables, VirtualDestination, ...) exported by these workspaces that have the label `expose` set to `true`
-
-### Create the bookinfo Workspace
-Now we're going to create a workspace for the team in charge of the Bookinfo application which corresponds to the `bookinfo-frontends` and `bookinfo-backends` namespaces on the cluster(s):
+### Create the bookinfo workspace and workspacesettings
+Similarly we will create a `bookinfo` workspace and workspacesettings for the httpbin app. In the import/export relationship, the bookin team has decided to import and export all destinations to the `ops-team` workspace.
 ```bash
 kubectl apply --context ${MGMT} -f- <<EOF
 apiVersion: admin.gloo.solo.io/v2
@@ -788,53 +708,38 @@ kind: Workspace
 metadata:
   name: bookinfo
   namespace: gloo-mesh
-  labels:
-    allow_ingress: "true"
 spec:
   workloadClusters:
-  - name: mgmt
+  - name: '*'
     namespaces:
     - name: bookinfo-frontends
     - name: bookinfo-backends
-EOF
-```
-
-Then, the Bookinfo team creates a `WorkspaceSettings` Kubernetes object in one of the namespaces of the `bookinfo` workspace (so the `bookinfo-frontends` or the `bookinfo-backends` namespace):
-```bash
-kubectl apply --context ${MGMT} -f- <<EOF
+---
 apiVersion: admin.gloo.solo.io/v2
 kind: WorkspaceSettings
 metadata:
   name: bookinfo
   namespace: bookinfo-frontends
 spec:
-  importFrom:
-  - workspaces:
-    - name: gateways
-    resources:
-    - kind: SERVICE
   exportTo:
   - workspaces:
-    - name: gateways
-    resources:
-    - kind: SERVICE
-      labels:
-        app: productpage
-    - kind: SERVICE
-      labels:
-        app: reviews
-    - kind: ALL
-      labels:
-        expose: "true"
+    - name: ops-team
+  importFrom:
+  - workspaces:
+    - name: ops-team
+  options:
+    federation:                     # enable service federation of the web-ui namespace
+      enabled: false
+      serviceSelector:
+      - namespace: bookinfo-frontends
+    serviceIsolation:               # enable service isolation and Istio Sidecar resource
+      enabled: false
+      trimProxyConfig: false
 EOF
 ```
 
-The Bookinfo team has decided to export the following to the `gateway` workspace (using a reference):
-- the `productpage` and the `reviews` Kubernetes services
-- all the resources (RouteTables, VirtualDestination, ...) that have the label `expose` set to `true`
-
-### Create the httpbin Workspace
-Lastly in the later labs we will use the `httpbin` application to demonstrate some more gateway features so we're going to create a workspace for the team in charge of the httpbin application in advance which corresponds to the `httpbin` namespace on the cluster(s):
+### Create the httpbin workspace and workspacesettings
+Similarly we will create a `httpbin` workspace and workspacesettings for the httpbin app. In the import/export relationship, the httpbin team has decided to import and export all destinations to the `ops-team` workspace. Note here that we are not importing/exporting any destinations from the `bookinfo` workspace because we do not need to route to any services in that workspace from httpbin
 ```bash
 kubectl apply --context ${MGMT} -f- <<EOF
 apiVersion: admin.gloo.solo.io/v2
@@ -842,49 +747,36 @@ kind: Workspace
 metadata:
   name: httpbin
   namespace: gloo-mesh
-  labels:
-    allow_ingress: "true"
 spec:
   workloadClusters:
-  - name: mgmt
+  - name: '*'
     namespaces:
     - name: httpbin
-EOF
-```
-
-Then, the httpbin team creates a `WorkspaceSettings` Kubernetes object in one of the namespaces of the `httpbin` workspace:
-```bash
-kubectl apply --context ${MGMT} -f- <<EOF
+---
 apiVersion: admin.gloo.solo.io/v2
 kind: WorkspaceSettings
 metadata:
   name: httpbin
   namespace: httpbin
 spec:
-  importFrom:
-  - workspaces:
-    - name: gateways
-    resources:
-    - kind: SERVICE
   exportTo:
   - workspaces:
-    - name: gateways
-    resources:
-    - kind: SERVICE
-      labels:
-        app: in-mesh
-    - kind: ALL
-      labels:
-        expose: "true"
+    - name: ops-team
+  importFrom:
+  - workspaces:
+    - name: ops-team
+  options:
+    federation:                     # enable service federation of the web-ui namespace
+      enabled: false
+      serviceSelector:
+      - namespace: httpbin
+    serviceIsolation:               # enable service isolation and Istio Sidecar resource
+      enabled: false
+      trimProxyConfig: false
 EOF
 ```
 
-The Httpbin team has decided to export the following to the `gateway` workspace (using a reference):
-- the `in-mesh` Kubernetes service
-- all the resources (RouteTables, VirtualDestination, ...) that have the label `expose` set to `true`
-
-This is how to environment looks like with the workspaces:
-
+This is how the environment looks like now with our workspaces set up
 ![Gloo Mesh Workspaces](images/runbook2b.png)
 
 
@@ -925,8 +817,6 @@ kind: RouteTable
 metadata:
   name: productpage
   namespace: bookinfo-frontends
-  labels:
-    expose: "true"
 spec:
   hosts:
     - '*'
@@ -1038,8 +928,6 @@ kind: RouteTable
 metadata:
   name: productpage
   namespace: bookinfo-frontends
-  labels:
-    expose: "true"
 spec:
   hosts:
     - '*'
@@ -1385,8 +1273,6 @@ kind: ExternalService
 metadata:
   name: httpbin-org
   namespace: httpbin
-  labels:
-    expose: "true"
 spec:
   hosts:
   - httpbin.org
@@ -1410,8 +1296,6 @@ kind: RouteTable
 metadata:
   name: httpbin
   namespace: httpbin
-  labels:
-    expose: "true"
 spec:
   hosts:
     - '*'
@@ -1461,8 +1345,6 @@ kind: ExternalService
 metadata:
   name: httpbin-not-in-mesh
   namespace: httpbin
-  labels:
-    expose: "true"
 spec:
   hosts:
   - not-in-mesh.httpbin
@@ -1481,8 +1363,6 @@ kind: RouteTable
 metadata:
   name: httpbin
   namespace: httpbin
-  labels:
-    expose: "true"
 spec:
   hosts:
     - '*'
@@ -1532,8 +1412,6 @@ kind: RouteTable
 metadata:
   name: httpbin
   namespace: httpbin
-  labels:
-    expose: "true"
 spec:
   hosts:
     - '*'
@@ -1593,8 +1471,6 @@ kind: RouteTable
 metadata:
   name: httpbin
   namespace: httpbin
-  labels:
-    expose: "true"
 spec:
   hosts:
     - '*'
@@ -1742,8 +1618,6 @@ kind: RouteTable
 metadata:
   name: httpbin
   namespace: httpbin
-  labels:
-    expose: "true"
 spec:
   hosts:
     - '*'
@@ -1886,8 +1760,6 @@ kind: RouteTable
 metadata:
   name: httpbin
   namespace: httpbin
-  labels:
-    expose: "true"
 spec:
   hosts:
     - '*'
@@ -1944,8 +1816,6 @@ kind: RouteTable
 metadata:
   name: httpbin
   namespace: httpbin
-  labels:
-    expose: "true"
 spec:
   hosts:
     - '*'
@@ -2058,8 +1928,6 @@ kubectl apply --context ${MGMT} -f- <<EOF
 apiVersion: networking.gloo.solo.io/v2
 kind: RouteTable
 metadata:
-  labels:
-    expose: "true"
   name: gm-ui-rt
   namespace: gloo-mesh
 spec:
@@ -2110,8 +1978,6 @@ kubectl apply --context ${MGMT} -f- <<EOF
 apiVersion: networking.gloo.solo.io/v2
 kind: RouteTable
 metadata:
-  labels:
-    expose: "true"
   name: gm-ui-rt
   namespace: gloo-mesh
 spec:
@@ -2380,8 +2246,6 @@ kind: RouteTable
 metadata:
   name: httpbin
   namespace: httpbin
-  labels:
-    expose: "true"
 spec:
   hosts:
     - '*'
@@ -2671,8 +2535,6 @@ kind: ExternalService
 metadata:
   name: oidc-jwks
   namespace: httpbin
-  labels:
-    expose: "true"
 spec:
   hosts:
   - idam.gehealthcloud.io
@@ -2877,8 +2739,6 @@ kind: RouteTable
 metadata:
   name: httpbin
   namespace: httpbin
-  labels:
-    expose: "true"
 spec:
   hosts:
     - '*'
@@ -2944,8 +2804,6 @@ kind: RouteTable
 metadata:
   name: httpbin-root
   namespace: httpbin
-  labels:
-    expose: "true"
 spec:
   hosts:
     - '*'
@@ -2988,8 +2846,6 @@ kind: RouteTable
 metadata:
   name: httpbin-delegate1
   namespace: httpbin
-  labels:
-    expose: "true"
 spec:
   http:
     - name: httpbin-get
@@ -3024,8 +2880,6 @@ kind: RouteTable
 metadata:
   name: httpbin-delegate2
   namespace: httpbin
-  labels:
-    expose: "true"
 spec:
   http:
     - name: httpbin-anything
@@ -3197,8 +3051,6 @@ kind: ExternalService
 metadata:
   name: oidc-jwks
   namespace: httpbin
-  labels:
-    expose: "true"
 spec:
   hosts:
   - idam.gehealthcloud.io
@@ -3377,8 +3229,6 @@ kind: RouteTable
 metadata:
   name: httpbin
   namespace: httpbin
-  labels:
-    expose: "true"
 spec:
   hosts:
     - '*'
@@ -3415,8 +3265,6 @@ kind: Workspace
 metadata:
   name: applist
   namespace: gloo-mesh
-  labels:
-    allow_ingress: "true"
 spec:
   workloadClusters:
   - name: mgmt
@@ -3449,8 +3297,6 @@ kubectl apply --context ${MGMT} -f- <<EOF
 apiVersion: networking.gloo.solo.io/v2
 kind: RouteTable
 metadata:
-  labels:
-    expose: "true"
   name: applist-svc-rt
   namespace: aw
 spec:
@@ -3589,8 +3435,6 @@ kind: ExternalService
 metadata:
   name: aw-oidc-jwks
   namespace: aw
-  labels:
-    expose: "true"
 spec:
   hosts:
   - idam.gehealthcloud.io
@@ -3671,8 +3515,6 @@ kind: RouteTable
 metadata:
   name: applist-svc-root
   namespace: aw
-  labels:
-    expose: "true"
 spec:
   hosts:
     - '*'
@@ -3703,8 +3545,6 @@ kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: networking.gloo.solo.io/v2
 kind: RouteTable
 metadata:
-  labels:
-    expose: "true"
   name: applist-svc-rt-delegate
   namespace: aw
 spec:
