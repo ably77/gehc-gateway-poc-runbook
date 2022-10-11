@@ -32,7 +32,7 @@ source ./scripts/assert.sh
 * [Lab 17 - Integrating with OPA](#Lab-17)
 * [Lab 18 - Use the JWT filter to create headers from claims](#Lab-18)
 * [Lab 19 - Use the transformation filter to manipulate headers](#Lab-19)
-* [Lab 20 - Implement OPA on new validated/transformed claims](#Lab-20)
+* [Lab 20 - Implement OPA on new validated/transformed claims](#Lavb-20)
 * [Lab 21 - Route Table Delegation](#Lab-21)
 * [Lab 22 - Apply ExtAuth to delegated routes](#Lab-22)
 * [Lab 23 - Applist Service](#Lab-22)
@@ -3629,6 +3629,11 @@ spec:
 EOF
 ```
 
+Get the URL to access the applist service using the following command:
+```
+echo "https://${ENDPOINT_HTTPS_GW_MGMT}/api/v1/applications"
+```
+
 Now if you access the `/api/v1/applications` endpoint with valid credentials we should see our error has been resolved. This is because we used the claims to headers feature to extract the `OIDC_CLAIM_preferred_username` that the app expects from the JWT token!
 
 ## [Lab 25 - Applist Service With Delegation](#Lab-25)
@@ -3710,6 +3715,13 @@ spec:
           cluster: mgmt
 EOF
 ```
+
+Get the URL to access the applist service using the following command:
+```
+echo "https://${ENDPOINT_HTTPS_GW_MGMT}/api/v1/applications"
+```
+
+Our route should now be working again with the same extauth configuration, except this time we have split up the route into a delegated route table!
 
 ## [Lab 24 - Access Logging](#Lab-24)
 If you take a look back at [Lab 2 - Deploy Istio](#Lab-2) when deploying istiod we set the config
