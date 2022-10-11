@@ -8,7 +8,7 @@ source ./scripts/assert.sh
 
 
 ![Gloo Mesh Enterprise](images/gloo-mesh-enterprise.png)
-# <center>Gloo Gateway POC Runbook (httpbin)</center>
+# <center>Gloo Gateway POC Runbook (httpbin + applist)</center>
 
 ## Table of Contents
 * [Introduction to Gloo Mesh](#introduction)
@@ -30,7 +30,10 @@ source ./scripts/assert.sh
 * [Lab 15 - Implement OPA on new validated/transformed claims](#Lab-15)
 * [Lab 16 - Route Table Delegation](#Lab-16)
 * [Lab 17 - Apply ExtAuth to delegated routes](#Lab-17)
-* [Lab 18 - Access Logging](#Lab-18)
+* [Lab 18 - Applist Service](#Lab-18)
+* [Lab 19 - Applist Service With Delegation](#Lab-19)
+* [Lab 20 - Access Logging](#Lab-20)
+
 
 ## Introduction to Gloo Mesh <a name="introduction"></a>
 [Gloo Mesh Enterprise](https://www.solo.io/products/gloo-mesh/) is a management plane which makes it easy to operate [Istio](https://istio.io) on one or many Kubernetes clusters deployed anywhere (any platform, anywhere).
@@ -1903,7 +1906,7 @@ kubectl --context ${MGMT} -n httpbin delete ExtAuthPolicy httpbin-opa
 
 ## Lab 13 - Use the JWT filter to create headers from claims <a name="Lab-13"></a>
 In this step, we're going to validate the JWT token and to create a new header from the `email` or `sub` claim. By doing so, we can gain a few benefits:
-- Simplified OPA policies (Lab 20)
+- Simplified OPA policies
 - JWT token doesn’t need to be passed along to backend and to OPA server (optional)            
 - JWT policy can do JWT token level validations upfront and then extract claims and pass them as arbitrary headers to the backend. Rego policies are then simpler and can deal with these validated headers for RBAC decisions rather than decoding them from JWT.
 
