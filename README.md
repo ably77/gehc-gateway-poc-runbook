@@ -3668,3 +3668,83 @@ EOF
 ```
 
 Now if you access the `/api/v1/applications` endpoint with valid credentials we should see our error has been resolved. This is because we used the claims to headers feature to extract the `OIDC_CLAIM_preferred_username` that the app expects from the JWT token!
+
+## [Lab 25 - Applist Service With Delegation](#Lab-25)
+Now that we have our working example, lets break this down using delegations
+
+First let's clean up the current route table
+```
+kubectl --context ${MGMT} delete routetable applist-svc-rt -n aw
+```
+
+### Apply the root table
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: networking.gloo.solo.io/v2
+kind: RouteTable
+metadata:
+  name: applist-svc-root
+  namespace: aw
+  labels:
+    expose: "true"
+spec:
+  hosts:
+    - '*'
+  virtualGateways:
+    - name: north-south-gw-443
+      namespace: istio-gateways
+      cluster: mgmt
+  workloadSelectors: []
+  http:
+  # our IDAM callback redirect is currently set to <LB>/oidc-callback
+  - name: applist-svc
+    labels:
+      route_name: "applist-svc"
+      validate_jwt: "true"
+    delegate:
+      # Selects tables based on name
+      routeTables:
+        - name: applist-svc-rt-delegate
+          namespace: aw
+      # Delegates based on order of specificity
+      sortMethod: ROUTE_SPECIFICITY
+EOF
+```
+
+And then we can deploy the delegate route table:
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: networking.gloo.solo.io/v2
+kind: RouteTable
+metadata:
+  labels:
+    expose: "true"
+  name: applist-svc-rt-delegate
+  namespace: aw
+spec:
+  http:
+  - name: applist-svc
+    labels:
+      route_name: "applist-svc"
+      validate_jwt: "true"
+    matchers:
+    - uri:
+        prefix: api/v1/echo/
+    - uri:
+        prefix: api/v1/Reformat/type
+    - uri:
+        prefix: api/v1/launch-info
+    - uri:
+        prefix: api/v1/applications
+    - uri:
+        prefix: /oidc-callback
+    forwardTo:
+      destinations:
+      - port:
+          number: 80
+        ref:
+          name: applist-svc
+          namespace: aw
+          cluster: mgmt
+EOF
+```
