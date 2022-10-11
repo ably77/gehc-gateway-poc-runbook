@@ -613,6 +613,7 @@ spec:
   - name: 'awdev1'               # awdev1 plane gloo mesh config namespace
     namespaces:
     - name: ops-team-config
+    - name: gloo-mesh
   - name: '*'                  # gloo mesh addons and gateways namespaces
     namespaces:
     - name: istio-gateways
@@ -3027,3 +3028,79 @@ Example output:
 ```
 
 This access log output can be sent to log collectors such as fluentd and then shipped to your favorite enterprise logging service such as Datadog or Splunk
+
+## Lab 21 - Exposing the Gloo Mesh UI (non-mTLS) <a name="Lab-21"></a>
+To expose the Gloo Mesh UI using our Ingress Gateway instead of port-forwarding simply deploy the route table below
+
+```bash
+kubectl apply --context ${MGMT} -f- <<EOF
+apiVersion: networking.gloo.solo.io/v2
+kind: RouteTable
+metadata:
+  labels:
+    expose: "true"
+  name: gm-ui-rt-443
+  namespace: gloo-mesh
+spec:
+  hosts:
+  - '*'
+  http:
+  - name: gloo-mesh-ui-main
+    labels:
+    matchers:
+    - uri:
+        prefix: /welcome
+    - uri:
+        prefix: /login
+    - uri:
+        prefix: /graph
+    - uri:
+        prefix: /gateways
+    - uri:
+        prefix: /policies
+    - uri:
+        prefix: /static
+    - uri:
+        prefix: /workspace
+    - uri:
+        exact: /favicon.ico
+    - uri:
+        regex: /manifest.json*
+    - uri:
+        regex: /rpc.gloo.solo.io.*
+    - uri:
+        prefix: /oidc-callback
+    - uri:
+        exact: /
+    forwardTo:
+      destinations:
+      - ref:
+          name: gloo-mesh-ui
+          namespace: gloo-mesh
+        port:
+          number: 8090
+  - name: gmui-rewrite
+    labels:
+    matchers:
+    - uri:
+        prefix: /gmui
+    forwardTo:
+      pathRewrite: /
+      destinations:
+      - ref:
+          name: gloo-mesh-ui
+          namespace: gloo-mesh
+        port:
+          number: 8090
+  virtualGateways:
+  - cluster: awdev1
+    name: north-south-gw-443
+    namespace: istio-gateways
+  workloadSelectors: []
+EOF
+```
+
+Now you should be able to access the Gloo Mesh UI on port 443
+```
+echo "https://${ENDPOINT_HTTPS_GW_MGMT}"
+```
