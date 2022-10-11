@@ -34,8 +34,8 @@ source ./scripts/assert.sh
 * [Lab 19 - Use the transformation filter to manipulate headers](#Lab-19)
 * [Lab 20 - Implement OPA on new validated/transformed claims](#Lab-20)
 * [Lab 21 - Route Table Delegation](#Lab-21)
-* [Lab 22 - Access Logging](#Lab-22)
-
+* [Lab 22 - Apply ExtAuth to delegated routes](#Lab-22)
+* [Lab 23 - Access Logging](#Lab-23)
 
 
 ## Introduction to Gloo Mesh <a name="introduction"></a>
