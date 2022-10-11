@@ -2170,6 +2170,7 @@ kubectl --context ${MGMT} -n httpbin delete jwtpolicy httpbin
 
 # transformation
 kubectl --context ${MGMT} -n httpbin delete transformationpolicy modify-x-sub-header
+```
 
 ## [Lab 16 - Route Table Delegation](#Lab-16)
 
