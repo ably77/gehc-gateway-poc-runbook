@@ -1568,9 +1568,9 @@ spec:
         route_name: "httpbin-all"
   config:
     server:
-      name: appdev1-ext-auth-server
+      name: awdev1-ext-auth-server
       namespace: httpbin
-      cluster: appdev1
+      cluster: awdev1
     glooAuth:
       configs:
       - oauth2:
