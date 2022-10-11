@@ -3328,8 +3328,15 @@ spec:
 EOF
 ```
 
-## [Lab 23 - Applist Service](#Lab-23)
+## [Lab 23 - Applist Service with IDAM Integration](#Lab-23)
 Below we will go through the process of onboarding the Applist service in the `aw` namespace
+
+### create aw namespace
+If we haven't already, lets create the applist namespace with the Istio injection label set
+```
+kubectl --context ${MGMT} create namespace aw
+kubectl --context ${MGMT} label namespace aw istio.io/rev=1-13 --overwrite=true
+```
 
 ### create the applist workspace
 ```bash
@@ -3348,7 +3355,7 @@ EOF
 ```
 
 ### create the applist workspacesettings
-```
+```bash
 kubectl apply --context ${MGMT} -f- <<EOF
 apiVersion: admin.gloo.solo.io/v2
 kind: WorkspaceSettings
@@ -3358,10 +3365,10 @@ metadata:
 spec:
   importFrom:
   - workspaces:
-    - name: gateways
+    - name: ops-team
   exportTo:
   - workspaces:
-    - name: gateways
+    - name: ops-team
 EOF
 ```
 
@@ -3573,7 +3580,7 @@ echo "https://${ENDPOINT_HTTPS_GW_MGMT}/api/v1/applications"
 
 Now if you access the `/api/v1/applications` endpoint with valid credentials we should see our error has been resolved. This is because we used the claims to headers feature to extract the `OIDC_CLAIM_preferred_username` that the app expects from the JWT token!
 
-## [Lab 24 - Applist Service With Delegation](#Lab-24)
+## [Lab 24 - Split Applist Route using Delegations](#Lab-24)
 Now that we have our working example, lets break this down using delegations
 
 First let's clean up the current route table
