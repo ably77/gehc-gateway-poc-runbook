@@ -448,7 +448,7 @@ not-in-mesh-5c64bb49cd-m9kwm   1/1     Running   0          11s
 ### Install the meshctl CLI
 First of all, let's install the `meshctl` CLI which will provide us some added functionality for interacting with Gloo Mesh
 ```bash
-export GLOO_MESH_VERSION=v2.1.0-beta27
+export GLOO_MESH_VERSION=v2.1.0-beta29
 curl -sL https://run.solo.io/meshctl/install | sh -
 export PATH=$HOME/.gloo-mesh/bin:$PATH
 ```
@@ -461,7 +461,7 @@ helm repo update
 kubectl --context ${MGMT} create ns gloo-mesh 
 helm upgrade --install gloo-mesh-enterprise gloo-mesh-enterprise/gloo-mesh-enterprise \
 --namespace gloo-mesh --kube-context ${MGMT} \
---version=2.1.0-beta27 \
+--version=2.1.0-beta29 \
 --values - <<EOF
 licenseKey: "${GLOO_MESH_LICENSE_KEY}"
 global:
@@ -558,7 +558,7 @@ helm upgrade --install gloo-mesh-agent gloo-mesh-agent/gloo-mesh-agent \
   --set rate-limiter.enabled=false \
   --set ext-auth-service.enabled=false \
   --set cluster=mgmt \
-  --version 2.1.0-beta27
+  --version 2.1.0-beta29
 ```
 
 Note that the registration can also be performed using `meshctl cluster register`.
@@ -634,7 +634,7 @@ helm upgrade --install gloo-mesh-agent-addons gloo-mesh-agent/gloo-mesh-agent \
   --set glooMeshAgent.enabled=false \
   --set rate-limiter.enabled=true \
   --set ext-auth-service.enabled=true \
-  --version 2.1.0-beta27
+  --version 2.1.0-beta29
 ```
 
 This is how the environment looks like now:
@@ -2017,7 +2017,7 @@ EOF
 
 Now upgrade Gloo Mesh
 ```bash
-helm --kube-context ${MGMT} upgrade --install gloo-mesh-enterprise gloo-mesh-enterprise/gloo-mesh-enterprise -n gloo-mesh --version=2.1.0-beta27 --values=values.yaml
+helm --kube-context ${MGMT} upgrade --install gloo-mesh-enterprise gloo-mesh-enterprise/gloo-mesh-enterprise -n gloo-mesh --version=2.1.0-beta29 --values=values.yaml
 ```
 
 Now that we have injected the gloo-mesh-ui with a sidecar, we should be able to see this reflected as `4/4` READY pods. If not just delete the pod so it re-deploys with one
@@ -2226,7 +2226,7 @@ EOF
 ### Update Gloo Mesh using Helm
 Now upgrade Gloo Mesh with our new `values-oidc.yaml` to pick up our new config
 ```bash
-helm --kube-context ${MGMT} upgrade --install gloo-mesh-enterprise gloo-mesh-enterprise/gloo-mesh-enterprise -n gloo-mesh --version=2.1.0-beta27 --values=values-oidc.yaml
+helm --kube-context ${MGMT} upgrade --install gloo-mesh-enterprise gloo-mesh-enterprise/gloo-mesh-enterprise -n gloo-mesh --version=2.1.0-beta29 --values=values-oidc.yaml
 ```
 
 Once configured, we should be able to access the Gloo Mesh UI and it should be now be protected by OIDC.
@@ -2241,7 +2241,7 @@ In this step, we're going to secure the access to the `httpbin` service using OA
 ```
 - create app registration in your OIDC
 - configuring a Gloo Mesh `ExtAuthPolicy` and `ExtAuthServer`
-- configuring the `RouteTable` with a specified label (i.e. `oauth: "true"`)
+- configuring the `RouteTable` with a specified label (i.e. `route_name: "httpbin-all"`)
 ```
 
 ### In your OIDC Provider
@@ -2265,7 +2265,7 @@ EOF
 
 Set the callback URL in your OIDC provider to map to our httpbin app
 ```bash
-export APP_CALLBACK_URL="https://$(kubectl --context ${MGMT} -n istio-gateways get svc istio-ingressgateway -o jsonpath='{.status.loadBalancer.ingress[0].*}')/get"
+export APP_CALLBACK_URL="https://$(kubectl --context ${MGMT} -n istio-gateways get svc istio-ingressgateway -o jsonpath='{.status.loadBalancer.ingress[0].*}')"
 
 echo $APP_CALLBACK_URL
 ```
@@ -2297,7 +2297,7 @@ spec:
   applyToRoutes:
   - route:
       labels:
-        oauth: "true"
+        route_name: "httpbin-all"
   config:
     server:
       name: mgmt-ext-auth-server
@@ -2371,9 +2371,9 @@ spec:
       cluster: mgmt
   workloadSelectors: []
   http:
-    - name: httpbin
+    - name: httpbin-all
       labels:
-        oauth: "true"
+        route_name: "httpbin-all"
         waf: "true"
         ratelimited: "true"
       matchers:
@@ -2397,7 +2397,7 @@ EOF
 
 Now when you access your httpbin app through the browser, it will be protected by the OIDC provider login page
 ```
-echo "${APP_CALLBACK_URL}"
+echo "${APP_CALLBACK_URL}/get"
 ```
 
 ## Lab 17 - Integrating with OPA <a name="Lab-17"></a>
@@ -2678,7 +2678,7 @@ spec:
   applyToRoutes:
   - route:
       labels:
-        oauth: "true"
+        validate_jwt: "true"
   config:
     phase:
       postAuthz:
@@ -2710,7 +2710,7 @@ spec:
           header: X-Amr
 EOF
 ```
-You can see that the `applyToRoutes` is set to our existing routes where `oauth: "true"` but also that we want to execute it after performing the external authentication (to have access to the JWT token) by setting the priority to `priority: 1` (note that lower value has higher priority)
+You can see that the `applyToRoutes` is set to our existing routes where `validate_jwt: true"` but also that we want to execute it after performing the external authentication (to have access to the JWT token) by setting the priority to `priority: 1` (note that lower value has higher priority)
 
 If you refresh the web page, you should see new `X-Email` and `X-Sub` headers have replaced our `jwt` header. (Note that if you want to keep the `jwt` header and just extract the claims to new headers this is also possible in Gloo Mesh 2.1)
 
@@ -2729,7 +2729,7 @@ spec:
   applyToRoutes:
   - route:
       labels:
-        oauth: "true"
+        validate_jwt: "true"
   config:
     phase:
       postAuthz:
@@ -2934,11 +2934,26 @@ spec:
       cluster: mgmt
   workloadSelectors: []
   http:
-  - delegate:
-      # Selects tables based on label
+  - name: httpbin-get
+    labels:
+      route_name: "httpbin-get"
+      validate_jwt: "true"
+    delegate:
+      # Selects tables based on name
       routeTables:
-        - labels:
-            table: httpbin-table
+        - name: httpbin-delegate1
+          namespace: httpbin
+      # Delegates based on order of weights
+      sortMethod: ROUTE_SPECIFICITY
+  - name: httpbin-anything
+    labels:
+      route_name: "httpbin-anything"
+      validate_jwt: "true"
+    delegate:
+      # Selects tables based on name
+      routeTables:
+        - name: httpbin-delegate2
+          namespace: httpbin
       # Delegates based on order of weights
       sortMethod: ROUTE_SPECIFICITY
 EOF
@@ -2954,13 +2969,17 @@ metadata:
   namespace: httpbin
   labels:
     expose: "true"
-    table: httpbin-table
 spec:
   http:
     - name: httpbin-get
+      labels:
+        route_name: "httpbin-get"
+        validate_jwt: "true"
       matchers:
       - uri:
-          exact: /get
+          prefix: /get
+      - uri:
+          prefix: /get/callback    
       forwardTo:
         destinations:
         - ref:
@@ -2973,7 +2992,7 @@ EOF
 
 You should now be able to access the httpbin application at the `/get` endpoint again
 ```
-echo "${APP_CALLBACK_URL}"
+echo "${APP_CALLBACK_URL}/get"
 ```
 
 Now lets add a second delegated table. This delegate table will own the `/anything` path of the `httpbin` app
@@ -2986,13 +3005,17 @@ metadata:
   namespace: httpbin
   labels:
     expose: "true"
-    table: httpbin-table
 spec:
   http:
     - name: httpbin-anything
+      labels:
+        route_name: "httpbin-anything"
+        validate_jwt: "true"
       matchers:
       - uri:
           prefix: /anything
+      - uri:
+          prefix: /anything/callback
       forwardTo:
         destinations:
         - ref:
@@ -3005,16 +3028,304 @@ EOF
 
 Now you should be able to access the `/anything` endpoint.
 
-### cleanup
-Lets clean up the OAuth policies we've created:
+## [Lab 22 - Apply ExtAuth to delegated routes](#Lab-22)
+Now that we have delegated the `/get` and `/anything` endpoints to two separate route tables each "team" can configure their own ExtAuth policy relative to their application endpoint
+
+First we can redeploy the mgmt-ext-auth-server from the steps before if we had cleaned it up
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: admin.gloo.solo.io/v2
+kind: ExtAuthServer
+metadata:
+  name: mgmt-ext-auth-server
+  namespace: httpbin
+spec:
+  destinationServer:
+    ref:
+      cluster: mgmt
+      name: ext-auth-service
+      namespace: gloo-mesh-addons
+    port:
+      name: grpc
+EOF
 ```
+
+And create the client secret if it doesn't exist already
+```bash
+export HTTPBIN_CLIENT_SECRET="<provide OIDC client secret here>"
+```
+
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: httpbin-oidc-client-secret
+  namespace: httpbin
+type: extauth.solo.io/oauth
+data:
+  client-secret: $(echo -n ${HTTPBIN_CLIENT_SECRET} | base64)
+EOF
+```
+
+Next we can configure the httpbin-get `ExtAuthPolicy`:
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: security.policy.gloo.solo.io/v2
+kind: ExtAuthPolicy
+metadata:
+  name: httpbin-get
+  namespace: httpbin
+spec:
+  applyToRoutes:
+  - route:
+      labels:
+        route_name: "httpbin-get"
+  config:
+    server:
+      name: mgmt-ext-auth-server
+      namespace: httpbin
+      cluster: mgmt
+    glooAuth:
+      configs:
+      - oauth2:
+          oidcAuthorizationCode:
+            appUrl: ${APP_CALLBACK_URL}
+            callbackPath: /get/callback
+            clientId: ${OIDC_CLIENT_ID}
+            clientSecretRef:
+              name: httpbin-oidc-client-secret
+              namespace: httpbin
+            issuerUrl: ${ISSUER_URL}
+            session:
+              failOnFetchFailure: true
+              redis:
+                options:
+                  host: redis.gloo-mesh-addons:6379
+                allowRefreshing: true
+              cookieOptions:
+                maxAge: "90"
+                path: "/get"
+            scopes:
+            - email
+            - profile
+            logoutPath: /logout
+            afterLogoutUrl: /get
+            headers:
+              idTokenHeader: Jwt
+EOF
+```
+
+At this point, in your browser you can see that the `/get` endpoint is protected by Ext Auth, while the `/anything` endpoint is wide-open to the public.
+
+Now we can configure the httpbin-anything `ExtAuthPolicy`:
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: security.policy.gloo.solo.io/v2
+kind: ExtAuthPolicy
+metadata:
+  name: httpbin-anything
+  namespace: httpbin
+spec:
+  applyToRoutes:
+  - route:
+      labels:
+        route_name: "httpbin-anything"
+  config:
+    server:
+      name: mgmt-ext-auth-server
+      namespace: httpbin
+      cluster: mgmt
+    glooAuth:
+      configs:
+      - oauth2:
+          oidcAuthorizationCode:
+            appUrl: ${APP_CALLBACK_URL}
+            callbackPath: /anything/callback
+            clientId: ${OIDC_CLIENT_ID}
+            clientSecretRef:
+              name: httpbin-oidc-client-secret
+              namespace: httpbin
+            issuerUrl: ${ISSUER_URL}
+            session:
+              failOnFetchFailure: true
+              redis:
+                options:
+                  host: redis.gloo-mesh-addons:6379
+                allowRefreshing: true
+              cookieOptions:
+                maxAge: "90"
+                path: "/anything"
+            scopes:
+            - email
+            - profile
+            logoutPath: /logout
+            afterLogoutUrl: /anything
+            headers:
+              idTokenHeader: Jwt
+EOF
+```
+
+We can also now reapply our `JWTPolicy` and OPA `ExtAuthPolicy` from before to validate that they are working with the delegated route tables
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: security.policy.gloo.solo.io/v2
+kind: JWTPolicy
+metadata:
+  name: httpbin
+  namespace: httpbin
+spec:
+  applyToRoutes:
+  - route:
+      labels:
+        validate_jwt: "true"
+  config:
+    phase:
+      postAuthz:
+        priority: 1
+    providers:
+      oidc:
+        issuer: "https://idam.gehealthcloud.io:443/t/solopocapp.group.app/oauth2/token"
+        tokenSource:
+          headers:
+          - name: jwt
+        remote:
+          url: "https://idam.gehealthcloud.io:443/t/solopocapp.group.app/oauth2/jwks"
+          cacheDuration: 10m
+          destinationRef:
+            ref:
+              name: oidc-jwks
+              namespace: httpbin
+              cluster: mgmt
+            kind: EXTERNAL_SERVICE
+            port: 
+              number: 443
+          enableAsyncFetch: false
+        claimsToHeaders:
+        - claim: email
+          header: X-Email
+        - claim: sub
+          header: X-Sub
+        - claim: amr
+          header: X-Amr
+EOF
+```
+
+Re apply the transformation on `X-Sub` for our OPA policy if it was cleaned up
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: trafficcontrol.policy.gloo.solo.io/v2
+kind: TransformationPolicy
+metadata:
+  name: modify-x-sub-header
+  namespace: httpbin
+spec:
+  applyToRoutes:
+  - route:
+      labels:
+        validate_jwt: "true"
+  config:
+    phase:
+      postAuthz:
+        priority: 2
+    request:
+      injaTemplate:
+        extractors:
+          organization:
+            header: 'X-Sub'
+            regex: '.*@(.*)$'
+            subgroup: 1
+        headers:
+          org:
+            text: "{{ organization }}"
+EOF
+```
+
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: security.policy.gloo.solo.io/v2
+kind: ExtAuthPolicy
+metadata:
+  name: httpbin-opa
+  namespace: httpbin
+spec:
+  applyToDestinations:
+  - selector:
+      name: in-mesh
+      namespace: httpbin
+      workspace: httpbin
+  config:
+    server:
+      name: mgmt-ext-auth-server
+      namespace: httpbin
+      cluster: mgmt
+    glooAuth:
+      configs:
+      - opaAuth:
+          modules:
+          - name: httpbin-opa
+            namespace: httpbin
+          query: "data.ehs.allow == true"
+EOF
+```
+
+Apply the OPA policy if it has been deleted:
+```bash
+kubectl --context ${MGMT} apply -f - <<EOF
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: httpbin-opa
+  namespace: httpbin
+data:
+  policy.rego: |-
+    package ehs
+
+    default allow = false
+
+    allow {
+        any({input.http_request.path == "/get",
+             input.http_request.path == "/anything"
+          })
+        # these are headers provided by JWTPolicy and claimsToHeaders feature
+        any({input.http_request.headers.org == "hc.ge.com"})
+        any({input.http_request.method == "GET",
+             input.http_request.method == "POST",
+             input.http_request.method == "PUT",
+             input.http_request.method == "DELETE"
+             })
+    }
+EOF
+```
+
+### cleanup
+Lets clean up the artifacts we've created in this section:
+```
+# route tables
 kubectl --context ${MGMT} -n httpbin delete routetable httpbin-root
 kubectl --context ${MGMT} -n httpbin delete routetable httpbin-delegate1
 kubectl --context ${MGMT} -n httpbin delete routetable httpbin-delegate2
+
+# extauth config
+kubectl --context ${MGMT} -n httpbin delete ExtAuthPolicy httpbin-anything
+kubectl --context ${MGMT} -n httpbin delete ExtAuthPolicy httpbin-get
+kubectl --context ${MGMT} -n httpbin delete ExtAuthPolicy httpbin-opa
+kubectl --context ${MGMT} -n httpbin delete secret httpbin-oidc-client-secret
+kubectl --context ${MGMT} -n httpbin delete ExtAuthServer mgmt-ext-auth-server
+
+# opa config
+kubectl --context ${MGMT} -n httpbin delete configmap httpbin-opa
+
+# jwtpolicy
+kubectl --context ${MGMT} -n httpbin delete externalservice oidc-jwks
+kubectl --context ${MGMT} -n httpbin delete jwtpolicy httpbin
+
+# transformation
+kubectl --context ${MGMT} -n httpbin delete transformationpolicy modify-x-sub-header
 ```
 
 
-First let's apply the original `RouteTable` yaml:
+Then let's apply the original `RouteTable` yaml:
 ```bash
 kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: networking.gloo.solo.io/v2
@@ -3049,7 +3360,7 @@ spec:
 EOF
 ```
 
-## [Lab 22 - Access Logging](#Lab-22)
+## [Lab 23 - Access Logging](#Lab-23)
 If you take a look back at [Lab 2 - Deploy Istio](#Lab-2) when deploying istiod we set the config
 ```
 meshConfig:
