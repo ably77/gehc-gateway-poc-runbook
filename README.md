@@ -8,7 +8,7 @@ source ./scripts/assert.sh
 
 
 ![Gloo Mesh Enterprise](images/gloo-mesh-enterprise.png)
-# <center>GEHC Gloo Gateway POC Runbook</center>
+# <center>GEHC Gloo Gateway POC Runbook (bookinfo + httpbin + applist)</center>
 
 ## Table of Contents
 * [Introduction to Gloo Mesh](#introduction)
@@ -33,10 +33,10 @@ source ./scripts/assert.sh
 * [Lab 18 - Use the JWT filter to create headers from claims](#Lab-18)
 * [Lab 19 - Use the transformation filter to manipulate headers](#Lab-19)
 * [Lab 20 - Implement OPA on new validated/transformed claims](#Lab-20)
-* [Lab 21 - Route Table Delegation](#Lab-21)
-* [Lab 22 - Apply ExtAuth to delegated routes](#Lab-22)
-* [Lab 23 - Applist Service](#Lab-23)
-* [Lab 24 - Applist Service With Delegation](#Lab-24)
+* [Lab 21 - Split httpbin route using delegations](#Lab-21)
+* [Lab 22 - Integrate delegated httpbin routes with IDAM](#Lab-22)
+* [Lab 23 - Applist Service with IDAM Integration](#Lab-23)
+* [Lab 24 - Split Applist Route using Delegations](#Lab-24)
 * [Lab 25 - Access Logging](#Lab-25)
 
 
@@ -2501,7 +2501,7 @@ kubectl --context ${MGMT} -n httpbin delete ExtAuthPolicy httpbin-opa
 
 ## Lab 18 - Use the JWT filter to create headers from claims <a name="Lab-18"></a>
 In this step, we're going to validate the JWT token and to create a new header from the `email` or `sub` claim. By doing so, we can gain a few benefits:
-- Simplified OPA policies (Lab 20)
+- Simplified OPA policies
 - JWT token doesn’t need to be passed along to backend and to OPA server (optional)            
 - JWT policy can do JWT token level validations upfront and then extract claims and pass them as arbitrary headers to the backend. Rego policies are then simpler and can deal with these validated headers for RBAC decisions rather than decoding them from JWT.
 
@@ -2764,7 +2764,7 @@ kubectl --context ${MGMT} -n httpbin delete jwtpolicy httpbin
 kubectl --context ${MGMT} -n httpbin delete transformationpolicy modify-x-sub-header
 ```
 
-## [Lab 21 - Route Table Delegation](#Lab-21)
+## [Lab 21 - Split httpbin route using delegations](#Lab-21)
 
 See [Official Docs](https://docs.solo.io/gloo-mesh-enterprise/latest/routing/rt-delegation/)
 As your Gloo Mesh environment grows in size and complexity, the number of routes configured on a given gateway might increase considerably. Or, you might have multiple ways of routing to a particular path for an app that are difficult to consistently switch between. To organize multiple routes, you can create sub-tables for individual route setups. Then, you create a root route table that delegates requests to those sub-tables based on a specified sorting method.
@@ -2884,7 +2884,7 @@ EOF
 
 Now you should be able to access the `/anything` endpoint.
 
-## [Lab 22 - Apply ExtAuth to delegated routes](#Lab-22)
+## [Lab 22 - Integrate delegated httpbin routes with IDAM](#Lab-22)
 Now that we have delegated the `/get` and `/anything` endpoints to two separate route tables each "team" can configure their own ExtAuth policy relative to their application endpoint
 
 First we can redeploy the mgmt-ext-auth-server from the steps before if we had cleaned it up
