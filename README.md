@@ -33,10 +33,10 @@ source ./scripts/assert.sh
 * [Lab 18 - Use the JWT filter to create headers from claims](#lab-18---use-the-jwt-filter-to-create-headers-from-claims-)
 * [Lab 19 - Use the transformation filter to manipulate headers](#lab-19---use-the-transformation-filter-to-manipulate-headers-)
 * [Lab 20 - Implement OPA on new validated/transformed claims](#lab-20---implement-opa-on-new-validatedtransformed-claims-)
-* [Lab 21 - Split httpbin route using delegations](#lab-21---split-httpbin-route-using-delegations-)
-* [Lab 22 - Integrate delegated httpbin routes with IDAM](#lab-22---integrate-delegated-httpbin-routes-with-idam-)
-* [Lab 23 - Applist Service with IDAM Integration](#lab-23---applist-service-with-idam-integration-)
-* [Lab 24 - Split Applist Route using Delegations](#lab-24---split-applist-route-using-delegations-)
+* [Lab 21 - Split httpbin route using delegations](#lab-21---split-httpbin-route-using-delegations)
+* [Lab 22 - Integrate delegated httpbin routes with IDAM](#lab-22---integrate-delegated-httpbin-routes-with-idam)
+* [Lab 23 - Applist Service with IDAM Integration](#lab-23---applist-service-with-idam-integration)
+* [Lab 24 - Split Applist Route using Delegations](#lab-24---split-applist-route-using-delegations)
 * [Lab 25 - Access Logging](#lab-25---access-logging-)
 
 ## Introduction to Gloo Mesh <a name="introduction"></a>
