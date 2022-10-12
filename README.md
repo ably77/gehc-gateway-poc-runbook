@@ -11,9 +11,9 @@ source ./scripts/assert.sh
 # <center>GEHC Gloo Gateway POC Runbook (bookinfo + httpbin + applist)</center>
 
 ## Table of Contents
-* [Introduction to Gloo Mesh](#introduction-to-gloo-mesh-a-nameintroductiona)
-* [Lab 0 - Prerequisites](#lab-0---prerequisites-a-namelab-0a)
-* [Lab 1 - Setting up your Environment Variables](#lab-1---setting-up-your-environment-variables-a-namelab-1a)
+* [Introduction to Gloo Mesh](#introduction-to-gloo-mesh-)
+* [Lab 0 - Prerequisites](#lab-0---prerequisites-)
+* [Lab 1 - Setting up your Environment Variables](#lab-1---setting-up-your-environment-variables)
 * [Lab 2 - Deploy Istio](#lab-2---deploy-istio-a-namelab-2a)
 * [Lab 3 - Deploy our bookinfo and httpbin demo apps](#lab-3---deploy-our-bookinfo-and-httpbin-demo-apps-a-namelab-3a)
 * [Lab 4 - Deploy and register Gloo Mesh](#lab-4---deploy-and-register-gloo-mesh-a-namelab-4a)
