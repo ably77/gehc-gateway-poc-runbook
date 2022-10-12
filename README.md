@@ -1948,53 +1948,8 @@ The UI is available at http://localhost:8090
 ![Gloo Mesh Dashboard](images/runbook7a.png)
 
 ## Lab 14 - Exposing the Gloo Mesh UI <a name="Lab-14"></a>
-To expose the Gloo Mesh UI using our Ingress Gateway instead of port-forwarding, first we will add the Gloo Mesh UI pod into the mesh
+To expose the Gloo Mesh UI using our Ingress Gateway instead of port-forwarding, just deploy this route table
 
-### Update Gloo Mesh Helm 
-Save this as a values.yaml, keep the commented out sections as we may use those later
-```bash
-cat <<EOF >>values.yaml
-licenseKey: ${GLOO_MESH_LICENSE_KEY}
-global:
-  cluster: mgmt
-mgmtClusterName: mgmt
-glooMeshMgmtServer:
-  ports:
-    healthcheck: 8091
-  serviceType: LoadBalancer
-glooMeshUi:
-  enabled: true
-  serviceType: ClusterIP
-  # if cluster is istio enabled we can also add the dashboard into the mesh
-  deploymentOverrides:
-    spec:
-      template:
-        metadata:
-          annotations:
-            sidecar.istio.io/inject: "true"
-          labels:
-            istio.io/rev: "1-13"
-EOF
-```
-
-Now upgrade Gloo Mesh
-```bash
-helm --kube-context ${MGMT} upgrade --install gloo-mesh-enterprise gloo-mesh-enterprise/gloo-mesh-enterprise -n gloo-mesh --version=2.1.0-beta29 --values=values.yaml
-```
-
-Now that we have injected the gloo-mesh-ui with a sidecar, we should be able to see this reflected as `4/4` READY pods. If not just delete the pod so it re-deploys with one
-```
-% k get pods -n gloo-mesh
-NAME                                     READY   STATUS    RESTARTS      AGE
-gloo-mesh-redis-5d694bdc9-8cqx8          1/1     Running   0             60m
-gloo-mesh-mgmt-server-6c66ddd7c8-jjddg   1/1     Running   0             60m
-prometheus-server-59946649d9-2gcgx       2/2     Running   0             60m
-gloo-mesh-agent-598bc58db9-7xbjv         1/1     Running   1 (58m ago)   59m
-gloo-mesh-ui-54c67b5bc6-bwv5n            4/4     Running   1 (56m ago)   56m
-```
-
-### Expose the Gloo Mesh UI using a Route Table
-Next we can deploy the route table mapping to this destination
 ```bash
 kubectl apply --context ${MGMT} -f- <<EOF
 apiVersion: networking.gloo.solo.io/v2
@@ -2024,61 +1979,13 @@ spec:
     - uri:
         prefix: /static/js
     - uri:
+        prefix: /static/css
+    - uri:
         prefix: /static/media
     - uri:
         prefix: /login
     - uri:
         regex: /rpc.gloo.solo.io.*
-    - uri:
-        prefix: /workspace
-    - uri:
-        prefix: /oidc-callback
-  virtualGateways:
-  - cluster: mgmt
-    name: north-south-gw-80
-    namespace: istio-gateways
-  workloadSelectors: []
-EOF
-```
-
-Now you should be able to access the Gloo Mesh UI on port 80
-```
-echo "http://${ENDPOINT_HTTP_GW_MGMT}"
-```
-
-Alternatively you can also apply the `RouteTable` to the gateway on 443 instead by selecting the `spec.virtualGateway.name: north-south-gw-443` 
-```bash
-kubectl apply --context ${MGMT} -f- <<EOF
-apiVersion: networking.gloo.solo.io/v2
-kind: RouteTable
-metadata:
-  name: gm-ui-rt
-  namespace: gloo-mesh
-spec:
-  hosts:
-  - '*'
-  http:
-  - forwardTo:
-      destinations:
-      - ref:
-          name: gloo-mesh-ui
-          namespace: gloo-mesh
-        port:
-          number: 8090
-    labels:
-      waf: "true"
-    name: gloo-mesh-ui
-    matchers:
-    - uri:
-        exact: /
-    - uri:
-        exact: /welcome
-    - uri:
-        prefix: /static
-    - uri:
-        prefix: /login
-    - uri:
-        prefix: /rpc
     - uri:
         prefix: /workspace
     - uri:
@@ -2128,7 +2035,7 @@ export GMUI_CALLBACK_URL="https://$(kubectl --context ${MGMT} -n istio-gateways 
 echo ${GMUI_CALLBACK_URL}
 ```
 
-Replace the `OICD_CLIENT_ID` and `ISSUER_URL` values below with your OIDC app settings:
+Replace the `OIDC_CLIENT_ID` and `ISSUER_URL` values below with your OIDC app settings:
 ```bash
 export GMUI_OIDC_CLIENT_ID="<client ID for Gloo Mesh UI app>"
 export GMUI_OIDC_CLIENT_SECRET="<client secret for Gloo Mesh UI app>"
