@@ -37,7 +37,7 @@ source ./scripts/assert.sh
 * [Lab 22 - Integrate delegated httpbin routes with IDAM](#lab-22---integrate-delegated-httpbin-routes-with-idam)
 * [Lab 23 - Applist Service with IDAM Integration](#lab-23---applist-service-with-idam-integration)
 * [Lab 24 - Split Applist Route using Delegations](#lab-24---split-applist-route-using-delegations)
-* [Lab 25 - Access Logging](#lab-25---access-logging-)
+* [Lab 25 - Access Logging](#lab-25---access-logging)
 
 ## Introduction to Gloo Mesh <a name="introduction"></a>
 [Gloo Mesh Enterprise](https://www.solo.io/products/gloo-mesh/) is a management plane which makes it easy to operate [Istio](https://istio.io) on one or many Kubernetes clusters deployed anywhere (any platform, anywhere).
