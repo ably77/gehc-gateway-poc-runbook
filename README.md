@@ -3252,9 +3252,9 @@ metadata:
   namespace: gloo-mesh
 spec:
   workloadClusters:
-  - name: mgmt
+  - name: awdev1
     namespaces:
-    - name: aw
+    - name: cockpit
 EOF
 ```
 
@@ -3265,7 +3265,7 @@ apiVersion: admin.gloo.solo.io/v2
 kind: WorkspaceSettings
 metadata:
   name: applist-workspacesettings
-  namespace: aw
+  namespace: cockpit
 spec:
   importFrom:
   - workspaces:
@@ -3283,7 +3283,7 @@ apiVersion: networking.gloo.solo.io/v2
 kind: RouteTable
 metadata:
   name: applist-svc-rt
-  namespace: aw
+  namespace: cockpit
 spec:
   hosts:
   - '*'
@@ -3298,16 +3298,16 @@ spec:
     - uri:
         prefix: /api/v1/applications
     - uri:
-        prefix: /oidc-callback
+        prefix: /applist/callback
     forwardTo:
       destinations:
       - port:
-          number: 80
+          number: 8000
         ref:
           name: applist-svc
-          namespace: aw
+          namespace: cockpit
   virtualGateways:
-  - cluster: mgmt
+  - cluster: awdev1
     name: north-south-gw-443
     namespace: istio-gateways
   workloadSelectors: []
@@ -3322,6 +3322,21 @@ echo "https://${ENDPOINT_HTTPS_GW_MGMT}/api/v1/echo/hi"
 ```
 
 Note that if you try to access the `/api/v1/applications` endpoint it will return an error `Missing User info` because the user needs to be authenticated to access this endpoint.
+
+
+### setting variables
+Set your variables if they are not already set:
+```
+export APP_CALLBACK_URL="https://$(kubectl --context ${MGMT} -n istio-gateways get svc istio-ingressgateway -o jsonpath='{.status.loadBalancer.ingress[0].*}')"
+export OIDC_CLIENT_ID="solo-poc-clientid"
+export ISSUER_URL="https://idam.gehealthcloud.io:443/t/solopocapp.group.app/oauth2/token"
+export JWKS_URI="https://idam.gehealthcloud.io:443/t/solopocapp.group.app/oauth2/jwks"
+
+echo $APP_CALLBACK_URL
+echo $OIDC_CLIENT_ID
+echo $ISSUER_URL
+echo $JWKS_URI
+```
 
 ### apply extauth
 Similar to before, we will create a new secret that contains the oidc client secret, but in the `aw` namespace
@@ -3338,7 +3353,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: aw-oidc-client-secret
-  namespace: aw
+  namespace: cockpit
 type: extauth.solo.io/oauth
 data:
   client-secret: $(echo -n ${AW_CLIENT_SECRET} | base64)
@@ -3351,14 +3366,14 @@ kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: admin.gloo.solo.io/v2
 kind: ExtAuthServer
 metadata:
-  name: mgmt-ext-auth-server
-  namespace: aw
+  name: awdev1-ext-auth-server
+  namespace: cockpit
 spec:
   destinationServer:
     port:
       name: grpc
     ref:
-      cluster: mgmt
+      cluster: awdev1
       name: ext-auth-service
       namespace: gloo-mesh-addons
 EOF
@@ -3371,7 +3386,7 @@ apiVersion: security.policy.gloo.solo.io/v2
 kind: ExtAuthPolicy
 metadata:
   name: applist-svc-extauth
-  namespace: aw
+  namespace: cockpit
 spec:
   applyToRoutes:
   - route:
@@ -3383,15 +3398,15 @@ spec:
       - oauth2:
           oidcAuthorizationCode:
             afterLogoutUrl: api/v1/applications
-            appUrl: https://k8s-istiogat-istioing-3baf0b90ff-36364ad95b59749e.elb.us-east-1.amazonaws.com
+            appUrl: ${APP_CALLBACK_URL}
             callbackPath: /oidc-callback
-            clientId: solo-poc-clientid
+            clientId: ${OIDC_CLIENT_ID}
             clientSecretRef:
               name: aw-oidc-client-secret
-              namespace: aw
+              namespace: cockpit
             headers:
               idTokenHeader: Jwt
-            issuerUrl: https://idam.gehealthcloud.io:443/t/solopocapp.group.app/oauth2/token
+            issuerUrl: ${ISSUER_URL}
             logoutPath: /logout
             scopes:
             - email
@@ -3406,9 +3421,9 @@ spec:
                 options:
                   host: redis.gloo-mesh-addons:6379
     server:
-      cluster: mgmt
-      name: mgmt-ext-auth-server
-      namespace: aw
+      cluster: awdev1
+      name: awdev1-ext-auth-server
+      namespace: cockpit
 EOF
 ```
 
@@ -3419,7 +3434,7 @@ apiVersion: networking.gloo.solo.io/v2
 kind: ExternalService
 metadata:
   name: aw-oidc-jwks
-  namespace: aw
+  namespace: cockpit
 spec:
   hosts:
   - idam.gehealthcloud.io
@@ -3439,7 +3454,7 @@ apiVersion: security.policy.gloo.solo.io/v2
 kind: JWTPolicy
 metadata:
   name: applist-svc
-  namespace: aw
+  namespace: cockpit
 spec:
   applyToRoutes:
   - route:
@@ -3458,7 +3473,7 @@ spec:
           header: OIDC_CLAIM_preferred_username
         - claim: amr
           header: X-Amr
-        issuer: https://idam.gehealthcloud.io:443/t/solopocapp.group.app/oauth2/token
+        issuer: ${ISSUER_URL}
         remote:
           cacheDuration: 10m
           destinationRef:
@@ -3468,9 +3483,9 @@ spec:
             ref:
               cluster: mgmt
               name: aw-oidc-jwks
-              namespace: aw
+              namespace: cockpit
           enableAsyncFetch: false
-          url: https://idam.gehealthcloud.io:443/t/solopocapp.group.app/oauth2/jwks
+          url: ${JWKS_URI}
         tokenSource:
           headers:
           - name: jwt
@@ -3499,7 +3514,7 @@ apiVersion: networking.gloo.solo.io/v2
 kind: RouteTable
 metadata:
   name: applist-svc-root
-  namespace: aw
+  namespace: cockpit
 spec:
   hosts:
     - '*'
@@ -3518,7 +3533,7 @@ spec:
       # Selects tables based on name
       routeTables:
         - name: applist-svc-rt-delegate
-          namespace: aw
+          namespace: cockpit
       # Delegates based on order of specificity
       sortMethod: ROUTE_SPECIFICITY
 EOF
@@ -3531,7 +3546,7 @@ apiVersion: networking.gloo.solo.io/v2
 kind: RouteTable
 metadata:
   name: applist-svc-rt-delegate
-  namespace: aw
+  namespace: cockpit
 spec:
   http:
   - name: applist-svc
@@ -3552,10 +3567,10 @@ spec:
     forwardTo:
       destinations:
       - port:
-          number: 80
+          number: 8000
         ref:
           name: applist-svc
-          namespace: aw
+          namespace: cockpit
           cluster: mgmt
 EOF
 ```
