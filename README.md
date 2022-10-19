@@ -2957,29 +2957,26 @@ metadata:
   namespace: cockpit
 spec:
   http:
-  - name: aw-applist
-    labels:
-      route_name: "aw-applist"
-      validate_jwt: "true"
-    matchers:
-    - uri:
-        prefix: api/v1/echo/
-    - uri:
-        prefix: api/v1/Reformat/type
-    - uri:
-        prefix: api/v1/launch-info
-    - uri:
-        prefix: api/v1/applications
-    - uri:
-        prefix: /oidc-callback
-    forwardTo:
+  - forwardTo:
       destinations:
       - port:
           number: 8000
         ref:
-          name: applist-svc
+          name: applist
           namespace: cockpit
-          cluster: mgmt
+    labels:
+      route_name: aw-applist
+      validate_jwt: "true"
+    matchers:
+    - uri:
+        prefix: api/v1/echo/hi
+    - uri:
+        prefix: api/v1/Reformat/type
+    - uri:
+        prefix: api/v1/applications
+    - uri:
+        prefix: /applist/callback
+    name: aw-applist
 EOF
 ```
 
