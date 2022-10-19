@@ -2641,13 +2641,13 @@ EOF
 ```
 
 ## [Lab 18 - Applist Service with IDAM Integration](#Lab-18)
-Below we will go through the process of onboarding the Applist service in the `aw` namespace
+Below we will go through the process of onboarding the Applist service in the `cockpit` namespace
 
-### create aw namespace
+### create cockpit namespace
 If we haven't already, lets create the applist namespace with the Istio injection label set
 ```
-kubectl --context ${MGMT} create namespace aw
-kubectl --context ${MGMT} label namespace aw istio.io/rev=1-13 --overwrite=true
+kubectl --context ${MGMT} create namespace cockpit
+kubectl --context ${MGMT} label namespace cockpit istio.io/rev=1-13 --overwrite=true
 ```
 
 ### create the applist workspace
@@ -2662,7 +2662,7 @@ spec:
   workloadClusters:
   - name: awdev1
     namespaces:
-    - name: aw
+    - name: cockpit
 EOF
 ```
 
@@ -2673,7 +2673,7 @@ apiVersion: admin.gloo.solo.io/v2
 kind: WorkspaceSettings
 metadata:
   name: applist-workspacesettings
-  namespace: aw
+  namespace: cockpit
 spec:
   importFrom:
   - workspaces:
@@ -2691,14 +2691,14 @@ apiVersion: networking.gloo.solo.io/v2
 kind: RouteTable
 metadata:
   name: applist-svc-rt
-  namespace: aw
+  namespace: cockpit
 spec:
   hosts:
   - '*'
   http:
-  - name: applist-svc
+  - name: aw-applist
     labels: 
-      route_name: "applist-svc"
+      route_name: "aw-applist"
       validate_jwt: "true"
     matchers:
     - uri:
@@ -2706,14 +2706,14 @@ spec:
     - uri:
         prefix: /api/v1/applications
     - uri:
-        prefix: /oidc-callback
+        prefix: /applist/callback
     forwardTo:
       destinations:
       - port:
-          number: 80
+          number: 8000
         ref:
           name: applist-svc
-          namespace: aw
+          namespace: cockpit
   virtualGateways:
   - cluster: awdev1
     name: north-south-gw-443
@@ -2731,8 +2731,23 @@ echo "https://${ENDPOINT_HTTPS_GW_MGMT}/api/v1/echo/hi"
 
 Note that if you try to access the `/api/v1/applications` endpoint it will return an error `Missing User info` because the user needs to be authenticated to access this endpoint.
 
+
+### setting variables
+Set your variables if they are not already set:
+```
+export APP_CALLBACK_URL="https://$(kubectl --context ${MGMT} -n istio-gateways get svc istio-ingressgateway -o jsonpath='{.status.loadBalancer.ingress[0].*}')"
+export OIDC_CLIENT_ID="solo-poc-clientid"
+export ISSUER_URL="https://idam.gehealthcloud.io:443/t/solopocapp.group.app/oauth2/token"
+export JWKS_URI="https://idam.gehealthcloud.io:443/t/solopocapp.group.app/oauth2/jwks"
+
+echo $APP_CALLBACK_URL
+echo $OIDC_CLIENT_ID
+echo $ISSUER_URL
+echo $JWKS_URI
+```
+
 ### apply extauth
-Similar to before, we will create a new secret that contains the oidc client secret, but in the `aw` namespace
+Similar to before, we will create a new secret that contains the oidc client secret, but in the `cockpit` namespace
 
 And create the client secret if it doesn't exist already
 ```bash
@@ -2746,21 +2761,21 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: aw-oidc-client-secret
-  namespace: aw
+  namespace: cockpit
 type: extauth.solo.io/oauth
 data:
   client-secret: $(echo -n ${AW_CLIENT_SECRET} | base64)
 EOF
 ```
 
-configure the awdev1 extauthserver reference in the `aw` namespace
+configure the mgmt extauthserver reference in the `cockpit` namespace
 ```bash
 kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: admin.gloo.solo.io/v2
 kind: ExtAuthServer
 metadata:
   name: awdev1-ext-auth-server
-  namespace: aw
+  namespace: cockpit
 spec:
   destinationServer:
     port:
@@ -2779,27 +2794,27 @@ apiVersion: security.policy.gloo.solo.io/v2
 kind: ExtAuthPolicy
 metadata:
   name: applist-svc-extauth
-  namespace: aw
+  namespace: cockpit
 spec:
   applyToRoutes:
   - route:
       labels:
-        route_name: "applist-svc"
+        route_name: "aw-applist"
   config:
     glooAuth:
       configs:
       - oauth2:
           oidcAuthorizationCode:
             afterLogoutUrl: api/v1/applications
-            appUrl: https://k8s-istiogat-istioing-3baf0b90ff-36364ad95b59749e.elb.us-east-1.amazonaws.com
-            callbackPath: /oidc-callback
-            clientId: solo-poc-clientid
+            appUrl: ${APP_CALLBACK_URL}
+            callbackPath: /applist/callback
+            clientId: ${OIDC_CLIENT_ID}
             clientSecretRef:
               name: aw-oidc-client-secret
-              namespace: aw
+              namespace: cockpit
             headers:
               idTokenHeader: Jwt
-            issuerUrl: https://idam.gehealthcloud.io:443/t/solopocapp.group.app/oauth2/token
+            issuerUrl: ${ISSUER_URL}
             logoutPath: /logout
             scopes:
             - email
@@ -2807,16 +2822,16 @@ spec:
             session:
               cookieOptions:
                 maxAge: "90"
+                path: /applist
               failOnFetchFailure: true
               redis:
                 allowRefreshing: true
-                cookieName: gehc-session
                 options:
                   host: redis.gloo-mesh-addons:6379
     server:
       cluster: awdev1
       name: awdev1-ext-auth-server
-      namespace: aw
+      namespace: cockpit
 EOF
 ```
 
@@ -2827,7 +2842,7 @@ apiVersion: networking.gloo.solo.io/v2
 kind: ExternalService
 metadata:
   name: aw-oidc-jwks
-  namespace: aw
+  namespace: cockpit
 spec:
   hosts:
   - idam.gehealthcloud.io
@@ -2846,8 +2861,8 @@ kubectl --context ${MGMT} apply -f - <<EOF
 apiVersion: security.policy.gloo.solo.io/v2
 kind: JWTPolicy
 metadata:
-  name: applist-svc
-  namespace: aw
+  name: applist-jwt
+  namespace: cockpit
 spec:
   applyToRoutes:
   - route:
@@ -2866,7 +2881,7 @@ spec:
           header: OIDC_CLAIM_preferred_username
         - claim: amr
           header: X-Amr
-        issuer: https://idam.gehealthcloud.io:443/t/solopocapp.group.app/oauth2/token
+        issuer: ${ISSUER_URL}
         remote:
           cacheDuration: 10m
           destinationRef:
@@ -2874,11 +2889,11 @@ spec:
             port:
               number: 443
             ref:
-              cluster: awdev1
+              cluster: mgmt
               name: aw-oidc-jwks
-              namespace: aw
+              namespace: cockpit
           enableAsyncFetch: false
-          url: https://idam.gehealthcloud.io:443/t/solopocapp.group.app/oauth2/jwks
+          url: ${JWKS_URI}
         tokenSource:
           headers:
           - name: jwt
@@ -2892,12 +2907,12 @@ echo "https://${ENDPOINT_HTTPS_GW_MGMT}/api/v1/applications"
 
 Now if you access the `/api/v1/applications` endpoint with valid credentials we should see our error has been resolved. This is because we used the claims to headers feature to extract the `OIDC_CLAIM_preferred_username` that the app expects from the JWT token!
 
-## [Lab 19 - Split Applist Route using Delegations](#Lab-19)
+## [Lab 24 - Split Applist Route using Delegations](#Lab-24)
 Now that we have our working example, lets break this down using delegations
 
 First let's clean up the current route table
 ```
-kubectl --context ${MGMT} delete routetable applist-svc-rt -n aw
+kubectl --context ${MGMT} delete routetable applist-svc-rt -n cockpit
 ```
 
 ### Apply the root table
@@ -2907,26 +2922,26 @@ apiVersion: networking.gloo.solo.io/v2
 kind: RouteTable
 metadata:
   name: applist-svc-root
-  namespace: aw
+  namespace: cockpit
 spec:
   hosts:
     - '*'
   virtualGateways:
     - name: north-south-gw-443
       namespace: istio-gateways
-      cluster: awdev1
+      cluster: mgmt
   workloadSelectors: []
   http:
   # our IDAM callback redirect is currently set to <LB>/oidc-callback
-  - name: applist-svc
+  - name: aw-applist
     labels:
-      route_name: "applist-svc"
+      route_name: "aw-applist"
       validate_jwt: "true"
     delegate:
       # Selects tables based on name
       routeTables:
         - name: applist-svc-rt-delegate
-          namespace: aw
+          namespace: cockpit
       # Delegates based on order of specificity
       sortMethod: ROUTE_SPECIFICITY
 EOF
@@ -2939,12 +2954,12 @@ apiVersion: networking.gloo.solo.io/v2
 kind: RouteTable
 metadata:
   name: applist-svc-rt-delegate
-  namespace: aw
+  namespace: cockpit
 spec:
   http:
-  - name: applist-svc
+  - name: aw-applist
     labels:
-      route_name: "applist-svc"
+      route_name: "aw-applist"
       validate_jwt: "true"
     matchers:
     - uri:
@@ -2960,11 +2975,11 @@ spec:
     forwardTo:
       destinations:
       - port:
-          number: 80
+          number: 8000
         ref:
           name: applist-svc
-          namespace: aw
-          cluster: awdev1
+          namespace: cockpit
+          cluster: mgmt
 EOF
 ```
 
@@ -2974,6 +2989,7 @@ echo "https://${ENDPOINT_HTTPS_GW_MGMT}/api/v1/applications"
 ```
 
 Our route should now be working again with the same extauth configuration, except this time we have split up the route into a delegated route table!
+
 
 ## [Lab 20 - Access Logging](#Lab-20)
 If you take a look back at [Lab 2 - Deploy Istio](#Lab-2) when deploying istiod we set the config
